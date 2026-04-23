@@ -13,17 +13,30 @@ namespace NavisLegacyPlugin
 	[AddInPluginAttribute(AddInLocation.AddIn)]
 
 	public class MainEntryPoint : AddInPlugin
-
 	{
+		private static MainWindow _window;
 		public override int Execute(params string[] parameters)
-
 		{
-			var wnd = new MainWindow();
-			NavisworksWindowHelper.SetOwner(wnd);
-			wnd.Show();
-			wnd.Activate();
+			
+			if (_window == null || !_window.IsLoaded)
+			{
+				_window = new MainWindow();
+
+				NavisworksWindowHelper.SetOwner(_window);
+				_window.Closed += (_, __) => _window = null;
+
+				_window.Show();
+				_window.Activate();
+			}
+			else
+			{
+				_window.Activate();
+			}
+
 			return 0;
+
 		}
+
 	}
 
 }
