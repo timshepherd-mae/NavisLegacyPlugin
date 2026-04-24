@@ -14,7 +14,9 @@
 				NavisworksWindowHelper.SetOwner(_window);
 
 				_window.Closed += (_, __) => _window = null;
-				_window.ShowDialog();
+				_window.Topmost = true;
+				_window.Show();
+				_window.Topmost = false;
 			}
 			else
 			{

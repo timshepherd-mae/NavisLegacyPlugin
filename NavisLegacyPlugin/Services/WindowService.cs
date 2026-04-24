@@ -7,7 +7,7 @@ namespace NavisLegacyPlugin
 		public static void ShowModalOwned(Window window)
 		{
 			NavisworksWindowHelper.SetOwner(window);
-			window.ShowDialog();
+			window.Show();
 		}
 	}
 }
