@@ -11,16 +11,69 @@
 			<RowDefinition Height="Auto" />
 		</Grid.RowDefinitions>
 
-		<TextBlock x:Name="StatusText"
-                   FontSize="14"
-                   TextWrapping="Wrap"
-                   VerticalAlignment="Center" />
+		<!-- Status text -->
+		<TextBlock
+            Text="{Binding StatusText}"
+            FontSize="14"
+            TextWrapping="Wrap"
+            VerticalAlignment="Center" />
 
-		<Button Grid.Row="1"
-                Content="Close"
-                Width="80"
-                Margin="0,10,0,0"
-                HorizontalAlignment="Right"
-                Click="Close_Click"/>
+		<!-- Buttons -->
+		<StackPanel
+            Grid.Row="1"
+            Orientation="Horizontal"
+            HorizontalAlignment="Right"
+            Margin="0,10,0,0">
+
+			<TextBlock Text="{Binding DebugMarker}" />   
+
+			<Button
+                Content="Action One"
+                Width="100"
+                Margin="0,0,10,0"
+                Command="{Binding ActionOneCommand}" />
+
+			<Button
+                Content="Action Two"
+                Width="100"
+                Command="{Binding ActionTwoCommand}" />
+		</StackPanel>
+
+		<StackPanel Margin="10">
+
+			<CheckBox
+                Content="Include sub-objects"
+                IsChecked="{Binding GeometryPositions.IncludeSubObjects}" />
+
+			<Button
+                Content="Get Geometry Positions"
+                Margin="0,10,0,10"
+                Width="200"
+                Command="{Binding GeometryPositions.RunCommand}" />
+
+			<DataGrid
+                ItemsSource="{Binding GeometryPositions.Results}"
+                AutoGenerateColumns="False"
+                Height="200">
+
+				<DataGrid.Columns>
+					<DataGridTextColumn Header="GUID"
+                                Binding="{Binding ItemGuid}" />
+
+					<DataGridTextColumn Header="Min"
+                                Binding="{Binding BoundingBoxMin}" />
+
+					<DataGridTextColumn Header="Max"
+                                Binding="{Binding BoundingBoxMax}" />
+
+					<DataGridTextColumn Header="Fragments"
+                                Binding="{Binding FragmentCount}" />
+				</DataGrid.Columns>
+
+			</DataGrid>
+
+		</StackPanel>
+
+
 	</Grid>
 </Window>
