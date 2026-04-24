@@ -20,8 +20,6 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
-		public string DebugMarker => "MainWindowViewModel is the DataContext";
-
 		public ICommand ActionOneCommand { get; }
 		public ICommand ActionTwoCommand { get; }
 		public GetGeometryPositionsViewModel GeometryPositions { get; }

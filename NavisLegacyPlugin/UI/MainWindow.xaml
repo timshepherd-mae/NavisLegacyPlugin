@@ -28,11 +28,13 @@
 
 		<!-- Scrollable DataGrid -->
 		<DataGrid
-        Grid.Row="1"
-        ItemsSource="{Binding GeometryPositions.Results}"
-        SelectedItem="{Binding GeometryPositions.SelectedRow, Mode=TwoWay}"
-        AutoGenerateColumns="True"
-        CanUserAddRows="False" />
+			x:Name="GeometryGrid"
+            Grid.Row="1"
+			SelectionChanged="GeometryGrid_SelectionChanged"
+            ItemsSource="{Binding GeometryPositions.Results}"
+            SelectedItem="{Binding GeometryPositions.SelectedRow, Mode=TwoWay}"
+            AutoGenerateColumns="True"
+            CanUserAddRows="False" />
 	</Grid>
 
 </Window>
