@@ -51,6 +51,7 @@ namespace NavisLegacyPlugin.Services
 
 			results.Add(new GeometryPositionRow
 			{
+				ModelItem = item,
 				ItemGuid = item.InstanceGuid.ToString(),
 				BoundingBoxMin = bbox.Min,
 				BoundingBoxMax = bbox.Max,

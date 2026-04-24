@@ -1,6 +1,8 @@
 ﻿using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
+using Autodesk.Navisworks.Api;
+
 using NavisLegacyPlugin.Models;
 using NavisLegacyPlugin.Services;
 
@@ -21,6 +23,29 @@ namespace NavisLegacyPlugin.ViewModels
 			{
 				_includeSubObjects = value;
 				OnPropertyChanged();
+			}
+		}
+
+		private GeometryPositionRow _selectedRow;
+		public GeometryPositionRow SelectedRow
+		{
+			get => _selectedRow;
+			set
+			{
+				_selectedRow = value;
+				OnPropertyChanged();
+
+				if (_selectedRow?.ModelItem != null)
+				{
+					var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
+					if (doc != null)
+					{
+						doc.CurrentSelection.Clear();
+						doc.CurrentSelection.Add(_selectedRow.ModelItem);
+					}
+				}
+
+
 			}
 		}
 
