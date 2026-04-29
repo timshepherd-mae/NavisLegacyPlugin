@@ -14,23 +14,6 @@ namespace NavisLegacyPlugin
 			DataContext = new MainWindowViewModel(contextService);
 		}
 
-		private void GeometryGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-		{
-			if (GeometryGrid.SelectedItem != null)
-			{
-				GeometryGrid.ScrollIntoView(GeometryGrid.SelectedItem);
-			}
-		}
-
-		protected override void OnClosed(EventArgs e)
-		{
-			if (DataContext is GetGeometryPositionsViewModel vm)
-			{
-				vm.Dispose();
-			}
-			base.OnClosed(e);
-		}
-
 	}
 
 }

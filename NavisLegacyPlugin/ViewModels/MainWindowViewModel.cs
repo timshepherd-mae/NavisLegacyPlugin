@@ -22,7 +22,8 @@ namespace NavisLegacyPlugin.ViewModels
 
 		public ICommand ActionOneCommand { get; }
 		public ICommand ActionTwoCommand { get; }
-		public GetGeometryPositionsViewModel GeometryPositions { get; }
+		public GetGeometryPositionsViewModel GeometryA { get; }
+		public GetGeometryPositionsViewModel GeometryB { get; }
 
 		public MainWindowViewModel(NavisworksContextService contextService)
 		{
@@ -31,7 +32,11 @@ namespace NavisLegacyPlugin.ViewModels
 
 			ActionOneCommand = new RelayCommand(OnActionOne);
 			ActionTwoCommand = new RelayCommand(OnActionTwo);
-			GeometryPositions = new GetGeometryPositionsViewModel(new GeometryPositionService());
+
+			var geometryService = new GeometryPositionService();
+
+			GeometryA = new GetGeometryPositionsViewModel(geometryService);
+			GeometryB = new GetGeometryPositionsViewModel(geometryService);	
 		}
 
 		private void LoadContext()
@@ -66,5 +71,7 @@ namespace NavisLegacyPlugin.ViewModels
 				MessageBoxImage.Information);
 		}
 
+
 	}
+
 }
