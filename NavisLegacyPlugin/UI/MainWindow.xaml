@@ -51,35 +51,36 @@
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Min X"
-                        Binding="{Binding MinX}"
+                        Header="Size X"
+                        Binding="{Binding SizeX}"
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Min Y"
-                        Binding="{Binding MinY}"
+                        Header="Size Y"
+                        Binding="{Binding SizeY}"
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Min Z"
-                        Binding="{Binding MinZ}"
+                        Header="Size Z"
+                        Binding="{Binding SizeZ}"
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Max X"
-                        Binding="{Binding MaxX}"
+                        Header="Cen X"
+                        Binding="{Binding CenX}"
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Max Y"
-                        Binding="{Binding MaxY}"
+                        Header="Cen Y"
+                        Binding="{Binding CenY}"
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Max Z"
-                        Binding="{Binding MaxZ}"
+                        Header="Cen Z"
+                        Binding="{Binding CenZ}"
                         Width="Auto" />
 				</DataGrid.Columns>
+				
 			</DataGrid>
 		</Grid>
 
@@ -122,35 +123,36 @@
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Min X"
-                        Binding="{Binding MinX}"
+                        Header="Size X"
+                        Binding="{Binding SizeX}"
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Min Y"
-                        Binding="{Binding MinY}"
+                        Header="Size Y"
+                        Binding="{Binding SizeY}"
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Min Z"
-                        Binding="{Binding MinZ}"
+                        Header="Size Z"
+                        Binding="{Binding SizeZ}"
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Max X"
-                        Binding="{Binding MaxX}"
+                        Header="Cen X"
+                        Binding="{Binding CenX}"
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Max Y"
-                        Binding="{Binding MaxY}"
+                        Header="Cen Y"
+                        Binding="{Binding CenY}"
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Max Z"
-                        Binding="{Binding MaxZ}"
+                        Header="Cen Z"
+                        Binding="{Binding CenZ}"
                         Width="Auto" />
 				</DataGrid.Columns>
+				
 			</DataGrid>
 		</Grid>
 	</Grid>

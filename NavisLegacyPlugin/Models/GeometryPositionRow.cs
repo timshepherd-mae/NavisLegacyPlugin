@@ -19,6 +19,15 @@ namespace NavisLegacyPlugin.Models
 		public double MaxY => BoundingBoxMax.Y;
 		public double MaxZ => BoundingBoxMax.Z;
 
+		public double SizeX => MaxX - MinX;
+		public double SizeY => MaxY - MinY;
+		public double SizeZ => MaxZ - MinZ;
+
+		public double CenX => BoundingBoxMin.X + SizeX / 2;
+		public double CenY => BoundingBoxMin.Y + SizeY / 2;
+		public double CenZ => BoundingBoxMin.Z + SizeZ / 2;
+
+
 		public int FragmentCount { get; set; }
 	}
 }
