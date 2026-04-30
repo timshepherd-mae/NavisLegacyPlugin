@@ -1,10 +1,16 @@
 ﻿<Window x:Class="NavisLegacyPlugin.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Add-in Executed"
-        Width="300"
-        Height="150"
+		xmlns:local="clr-namespace:NavisLegacyPlugin"
+		xmlns:conv="clr-namespace:NavisLegacyPlugin.Converters"
+        Title="MAE Data Viewer"
+        Width="600"
+        Height="300"
         WindowStartupLocation="CenterOwner">
+
+	<Window.Resources>
+		<conv:DoubleFormatConverter x:Key="DoubleFormatConverter" />
+	</Window.Resources>
 
 	<Grid Margin="10">
 		<Grid.ColumnDefinitions>
@@ -51,33 +57,51 @@
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Size X"
-                        Binding="{Binding SizeX}"
+						Header="Handle"
+                        Binding="{Binding Handle}"
                         Width="Auto" />
+
+
+					<DataGridTextColumn
+                        Header="Size X"
+                        Binding="{Binding SizeX,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
+						Width="Auto" />
 
 					<DataGridTextColumn
                         Header="Size Y"
-                        Binding="{Binding SizeY}"
+                        Binding="{Binding SizeY,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
                         Width="Auto" />
 
 					<DataGridTextColumn
                         Header="Size Z"
-                        Binding="{Binding SizeZ}"
+                        Binding="{Binding SizeZ,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
                         Width="Auto" />
 
 					<DataGridTextColumn
                         Header="Cen X"
-                        Binding="{Binding CenX}"
+                        Binding="{Binding CenX,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
                         Width="Auto" />
 
 					<DataGridTextColumn
                         Header="Cen Y"
-                        Binding="{Binding CenY}"
+                        Binding="{Binding CenY,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
                         Width="Auto" />
 
 					<DataGridTextColumn
                         Header="Cen Z"
-                        Binding="{Binding CenZ}"
+                        Binding="{Binding CenZ,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
                         Width="Auto" />
 				</DataGrid.Columns>
 				
@@ -123,36 +147,54 @@
                         Width="Auto" />
 
 					<DataGridTextColumn
-                        Header="Size X"
-                        Binding="{Binding SizeX}"
+						Header="Handle"
+                        Binding="{Binding Handle}"
                         Width="Auto" />
+
+
+					<DataGridTextColumn
+                        Header="Size X"
+                        Binding="{Binding SizeX,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
+						Width="Auto" />
 
 					<DataGridTextColumn
                         Header="Size Y"
-                        Binding="{Binding SizeY}"
+                        Binding="{Binding SizeY,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
                         Width="Auto" />
 
 					<DataGridTextColumn
                         Header="Size Z"
-                        Binding="{Binding SizeZ}"
+                        Binding="{Binding SizeZ,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
                         Width="Auto" />
 
 					<DataGridTextColumn
                         Header="Cen X"
-                        Binding="{Binding CenX}"
+                        Binding="{Binding CenX,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
                         Width="Auto" />
 
 					<DataGridTextColumn
                         Header="Cen Y"
-                        Binding="{Binding CenY}"
+                        Binding="{Binding CenY,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
                         Width="Auto" />
 
 					<DataGridTextColumn
                         Header="Cen Z"
-                        Binding="{Binding CenZ}"
+                        Binding="{Binding CenZ,
+                            Converter={StaticResource DoubleFormatConverter},
+                            ConverterParameter={x:Static local:DisplayFormats.Float}}"
                         Width="Auto" />
 				</DataGrid.Columns>
-				
+
 			</DataGrid>
 		</Grid>
 	</Grid>

@@ -8,6 +8,8 @@ namespace NavisLegacyPlugin.Models
 
 		public string ItemGuid { get; set; }
 
+		public string Handle { get; set; }
+
 		public Point3D BoundingBoxMin { get; set; }
 		public Point3D BoundingBoxMax { get; set; }
 

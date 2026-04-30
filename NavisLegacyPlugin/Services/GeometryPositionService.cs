@@ -55,8 +55,47 @@ namespace NavisLegacyPlugin.Services
 				ItemGuid = item.InstanceGuid.ToString(),
 				BoundingBoxMin = bbox.Min,
 				BoundingBoxMax = bbox.Max,
-				FragmentCount = item.Geometry.FragmentCount
+				FragmentCount = item.Geometry.FragmentCount,
+				Handle = TryGetAcadHandle(item)
 			});
 		}
+
+		private static string TryGetHandle(ModelItem item)
+		{
+			if (item?.PropertyCategories == null)
+				return null;
+
+			var itemCategory = item.PropertyCategories.FindCategoryByName("Item");
+			if (itemCategory == null)
+				return null;
+
+			var handleProperty = itemCategory.Properties.FindPropertyByName("Entity Handle");
+			if (handleProperty == null || handleProperty.Value == null)
+				return null;
+
+			return handleProperty.Value.ToDisplayString();
+		}
+
+		private static string TryGetAcadHandle(ModelItem item)
+		{
+			if (item?.PropertyCategories == null)
+				return null;
+
+			var dwgCategory =
+				item.PropertyCategories.FindCategoryByName("LcOpDwgEntityAttrib");
+
+			if (dwgCategory == null)
+				return null;
+
+			var entityProp =
+				dwgCategory.Properties.FindPropertyByName("LcOaNat64AttributeValue");
+
+			if (entityProp?.Value == null)
+				return null;
+
+			return entityProp.Value.ToDisplayString();
+		}
+
+
 	}
 }
