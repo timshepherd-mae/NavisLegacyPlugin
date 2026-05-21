@@ -1,0 +1,19 @@
+﻿<UserControl x:Class="NavisLegacyPlugin.UI.MainTabsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:NavisLegacyPlugin.UI">
+
+	<TabControl Margin="10">
+		<TabItem Header="Geometry Compare">
+			<ui:GeometryCompareTab />
+		</TabItem>
+
+		<TabItem Header="Geometry Matching">
+			<ui:GeometryMatchingTab />
+		</TabItem>
+
+		<TabItem Header="Data Painting">
+			<ui:DataPaintingTab />
+		</TabItem>
+	</TabControl>
+</UserControl>

@@ -1,0 +1,17 @@
+﻿<UserControl x:Class="NavisLegacyPlugin.UI.DataPaintingTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:NavisLegacyPlugin"
+             xmlns:conv="clr-namespace:NavisLegacyPlugin.Converters">
+
+	<UserControl.Resources>
+		<conv:DoubleFormatConverter x:Key="DoubleFormatConverter" />
+	</UserControl.Resources>
+
+	<Grid>
+		<TextBlock Text="New content goes here"
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Center"
+                   Opacity="0.6"/>
+	</Grid>
+</UserControl>
