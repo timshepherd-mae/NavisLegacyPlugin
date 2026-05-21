@@ -2,16 +2,26 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:NavisLegacyPlugin"
-             xmlns:conv="clr-namespace:NavisLegacyPlugin.Converters">
+             xmlns:conv="clr-namespace:NavisLegacyPlugin.Converters"
+			 DataContext="{Binding DataPainting}">
 
 	<UserControl.Resources>
 		<conv:DoubleFormatConverter x:Key="DoubleFormatConverter" />
 	</UserControl.Resources>
 
-	<Grid>
-		<TextBlock Text="New content goes here"
-                   VerticalAlignment="Center"
-                   HorizontalAlignment="Center"
-                   Opacity="0.6"/>
+
+	<Grid Margin="10">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+		</Grid.RowDefinitions>
+
+		<Button Content="Write Test Property"
+                Width="160"
+                Command="{Binding WriteTestCommand}" />
+
+		<TextBlock Grid.Row="1"
+                   Margin="0,10,0,0"
+                   Text="{Binding Status}" />
 	</Grid>
 </UserControl>
