@@ -30,27 +30,21 @@ namespace NavisLegacyPlugin.ViewModels
 			WriteTestCommand = new RelayCommand(WriteTest);
 		}
 
+
 		private void WriteTest()
 		{
 			try
 			{
 				Status = "Writing...";
-				var guid = new Guid(TestGuidString);
 
+				// ✅ hard-coded test values (UI bypass - stable)
+				string tabName = "Synchro";
+				string propName = "RID";
+				string propValue = DateTime.Now.ToString("HHmmss");
 
-				var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
-				if (doc == null)
-					throw new InvalidOperationException("No active Navisworks document.");
+				_writer.WriteToCurrentSelection(tabName, propName, propValue);
 
-				var target = doc.CurrentSelection.SelectedItems
-					.Cast<Autodesk.Navisworks.Api.ModelItem>()
-					.FirstOrDefault(i => i.InstanceGuid == guid);
-
-				if (target == null)
-					throw new InvalidOperationException("Target GUID not found in current selection.");
-
-				_writer.WriteUserDefinedProperty(target, TestTabName, TestPropName, TestPropValue);
-				Status = "Write complete (check properties).";
+				Status = "Write complete.";
 			}
 			catch (Exception ex)
 			{
