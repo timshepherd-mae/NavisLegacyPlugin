@@ -25,6 +25,21 @@ namespace NavisLegacyPlugin.ViewModels
 		private const string TestPropName = "PaintTest";
 		private const string TestPropValue = "Hello from Data Painting";
 
+
+		private string _writeMode = "Leaf"; // default
+
+		public string WriteMode
+		{
+			get { return _writeMode; }
+			set
+			{
+				_writeMode = value;
+				OnPropertyChanged();
+			}
+		}
+
+
+
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
 			_writer = writer;
@@ -38,6 +53,8 @@ namespace NavisLegacyPlugin.ViewModels
 			{
 				Status = "Writing...";
 
+				// HARD-CODED BOOL 
+				bool writeToLeafItems = (WriteMode == "Leaf");
 
 				var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
@@ -46,7 +63,7 @@ namespace NavisLegacyPlugin.ViewModels
 					{ "RID_3", "THIRD_" + DateTime.Now.ToString("HHmmss") }	
 				};
 
-				_writer.WriteToCurrentSelection("Synchro", props);
+				_writer.WriteToCurrentSelection("Synchro", props, writeToLeafItems);
 
 				Status = "Write complete.";
 			}
