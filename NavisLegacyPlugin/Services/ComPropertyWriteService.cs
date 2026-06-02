@@ -1,11 +1,10 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
-using Autodesk.Navisworks.Api;
+﻿using Autodesk.Navisworks.Api;
 using Autodesk.Navisworks.Api.ComApi;
 using Autodesk.Navisworks.Api.Interop.ComApi;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace NavisLegacyPlugin.Services
 {
@@ -14,14 +13,11 @@ namespace NavisLegacyPlugin.Services
 		private const string UserDefinedInternalCategoryName = "LcOaPropOverrideCat";
 
 		/// <summary>
-		/// Writes/updates a set of properties to the current selection.
-		/// writeToLeafItems = false  -> selected items only
-		/// writeToLeafItems = true   -> all leaf items beneath each selected item
+		/// Writes/updates a set of properties to every item in the current selection.
 		/// </summary>
 		public void WriteToCurrentSelection(
 			string tabName,
-			IDictionary<string, string> properties,
-			bool writeToLeafItems)
+			IDictionary<string, string> properties)
 		{
 			var doc = Application.ActiveDocument;
 
@@ -37,19 +33,14 @@ namespace NavisLegacyPlugin.Services
 			if (properties == null || properties.Count == 0)
 				throw new ArgumentException("At least one property is required.");
 
-			var targetItems = GetTargetItemsFromSelection(doc.CurrentSelection.SelectedItems, writeToLeafItems);
-
-			if (targetItems.Count == 0)
-				throw new InvalidOperationException("No target items found to write to.");
-
 			InwOpState10 state = null;
 
 			try
 			{
-				// IMPORTANT: one shared COM state for the whole batch
+				// IMPORTANT: get COM state ONCE for the whole batch
 				state = (InwOpState10)ComApiBridge.State;
 
-				foreach (ModelItem item in targetItems)
+				foreach (ModelItem item in doc.CurrentSelection.SelectedItems)
 				{
 					if (item != null)
 					{
@@ -64,29 +55,13 @@ namespace NavisLegacyPlugin.Services
 			finally
 			{
 				// DO NOT release state.
-				// Releasing ComApiBridge.State can cause RCW separation issues.
+				// Releasing ComApiBridge.State is what caused the RCW separation issue
+				// in the earlier per-item pattern.
 			}
 		}
 
 		/// <summary>
-		/// Convenience overload for old single-property call sites.
-		/// </summary>
-		public void WriteToCurrentSelection(
-			string tabName,
-			string propertyName,
-			string propertyValue,
-			bool writeToLeafItems)
-		{
-			var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-			{
-				{ propertyName, propertyValue }
-			};
-
-			WriteToCurrentSelection(tabName, properties, writeToLeafItems);
-		}
-
-		/// <summary>
-		/// Single item entry point.
+		/// Convenience single-item entry point.
 		/// </summary>
 		public void WriteUserDefinedProperties(
 			ModelItem item,
@@ -120,6 +95,9 @@ namespace NavisLegacyPlugin.Services
 			}
 		}
 
+		/// <summary>
+		/// Backward-compatible helper if you still want a one-property call site.
+		/// </summary>
 		public void WriteUserDefinedProperty(
 			ModelItem item,
 			string tabName,
@@ -134,55 +112,20 @@ namespace NavisLegacyPlugin.Services
 			WriteUserDefinedProperties(item, tabName, properties);
 		}
 
-		private List<ModelItem> GetTargetItemsFromSelection(
-			ModelItemCollection selectedItems,
-			bool writeToLeafItems)
+		/// <summary>
+		/// Backward-compatible selection helper for one property.
+		/// </summary>
+		public void WriteToCurrentSelection(
+			string tabName,
+			string propertyName,
+			string propertyValue)
 		{
-			var results = new List<ModelItem>();
-
-			if (selectedItems == null || selectedItems.Count == 0)
-				return results;
-
-			if (!writeToLeafItems)
+			var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 			{
-				foreach (ModelItem item in selectedItems)
-				{
-					if (item != null && !results.Contains(item))
-						results.Add(item);
-				}
+				{ propertyName, propertyValue }
+			};
 
-				return results;
-			}
-
-			foreach (ModelItem item in selectedItems)
-			{
-				if (item == null)
-					continue;
-
-				CollectLeafItems(item, results);
-			}
-
-			return results;
-		}
-
-		private void CollectLeafItems(ModelItem item, List<ModelItem> results)
-		{
-			if (item == null)
-				return;
-
-			// Leaf = no children
-			if (item.Children == null || item.Children.Count() == 0)
-			{
-				if (!results.Contains(item))
-					results.Add(item);
-
-				return;
-			}
-
-			foreach (ModelItem child in item.Children)
-			{
-				CollectLeafItems(child, results);
-			}
+			WriteToCurrentSelection(tabName, properties);
 		}
 
 		private void WriteOrUpdateUserDefinedPropertiesInternal(
@@ -211,7 +154,9 @@ namespace NavisLegacyPlugin.Services
 
 				if (existingUserDefinedIndex > 0 && existingAttr != null)
 				{
-					// Existing tab found: rebuild full vector and overwrite
+					// Existing tab found:
+					// build a new vector that preserves unrelated existing properties
+					// and upserts all supplied properties.
 					propVec = BuildMergedPropertyVector(
 						state,
 						existingAttr,
@@ -225,7 +170,8 @@ namespace NavisLegacyPlugin.Services
 				}
 				else
 				{
-					// No matching tab found: create a new one
+					// New tab:
+					// Autodesk examples show index 0 must be used to create a new user-defined category.
 					propVec = CreatePropertyVector(
 						state,
 						properties);
@@ -246,6 +192,11 @@ namespace NavisLegacyPlugin.Services
 			}
 		}
 
+		/// <summary>
+		/// Finds an existing user-defined tab by visible/custom tab name.
+		/// IMPORTANT:
+		/// first existing user-defined tab is index 1, not 0.
+		/// </summary>
 		private int FindExistingUserDefinedTab(
 			InwGUIPropertyNode2 node2,
 			string targetTabName,
@@ -256,7 +207,6 @@ namespace NavisLegacyPlugin.Services
 			if (node2 == null)
 				return -1;
 
-			// IMPORTANT: first existing user-defined tab index is 1, not 0
 			int userDefinedIndex = 1;
 
 			foreach (InwGUIAttribute2 attr in (IEnumerable)node2.GUIAttributes())
@@ -281,6 +231,9 @@ namespace NavisLegacyPlugin.Services
 			return -1;
 		}
 
+		/// <summary>
+		/// Create a new property vector from the supplied dictionary.
+		/// </summary>
 		private InwOaPropertyVec CreatePropertyVector(
 			InwOpState10 state,
 			IDictionary<string, string> properties)
@@ -298,6 +251,12 @@ namespace NavisLegacyPlugin.Services
 			return propVec;
 		}
 
+		/// <summary>
+		/// Merge supplied properties into an existing user-defined category:
+		/// - preserve existing properties that are not being replaced
+		/// - overwrite matching properties
+		/// - append any new ones
+		/// </summary>
 		private InwOaPropertyVec BuildMergedPropertyVector(
 			InwOpState10 state,
 			InwGUIAttribute2 existingAttr,
@@ -308,7 +267,7 @@ namespace NavisLegacyPlugin.Services
 				null,
 				null);
 
-			// Preserve existing properties that are not being replaced
+			// 1) Copy all existing properties EXCEPT the ones we are replacing
 			if (existingAttr != null)
 			{
 				foreach (InwOaProperty p in (IEnumerable)existingAttr.Properties())
@@ -343,6 +302,7 @@ namespace NavisLegacyPlugin.Services
 
 						propVec.Properties().Add(copy);
 
+						// ownership transferred to propVec
 						copy = null;
 					}
 					finally
@@ -352,7 +312,7 @@ namespace NavisLegacyPlugin.Services
 				}
 			}
 
-			// Add/update all incoming properties
+			// 2) Add all incoming properties (overwrite/append)
 			foreach (var kvp in incomingProperties)
 			{
 				AddProperty(state, propVec, kvp.Key, kvp.Value);
@@ -382,6 +342,7 @@ namespace NavisLegacyPlugin.Services
 
 				propVec.Properties().Add(prop);
 
+				// ownership transferred to propVec
 				prop = null;
 			}
 			finally
