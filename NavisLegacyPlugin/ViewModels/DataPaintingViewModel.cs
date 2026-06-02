@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Input;
 using NavisLegacyPlugin.Services;
@@ -37,12 +38,15 @@ namespace NavisLegacyPlugin.ViewModels
 			{
 				Status = "Writing...";
 
-				// ✅ hard-coded test values (UI bypass - stable)
-				string tabName = "Synchro";
-				string propName = "RID";
-				string propValue = DateTime.Now.ToString("HHmmss");
 
-				_writer.WriteToCurrentSelection(tabName, propName, propValue);
+				var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+				{
+					{ "RID", DateTime.Now.ToString("HHmmss") },
+					{ "RID_2", "SECOND_" + DateTime.Now.ToString("HHmmss") },
+					{ "RID_3", "THIRD_" + DateTime.Now.ToString("HHmmss") }	
+				};
+
+				_writer.WriteToCurrentSelection("Synchro", props);
 
 				Status = "Write complete.";
 			}

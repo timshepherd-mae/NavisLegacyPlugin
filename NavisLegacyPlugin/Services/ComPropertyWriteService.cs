@@ -3,23 +3,21 @@ using Autodesk.Navisworks.Api.ComApi;
 using Autodesk.Navisworks.Api.Interop.ComApi;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace NavisLegacyPlugin.Services
 {
 	public class ComPropertyWriteService
 	{
-		// Internal name Navisworks commonly uses for user-defined categories
 		private const string UserDefinedInternalCategoryName = "LcOaPropOverrideCat";
 
 		/// <summary>
-		/// Writes/updates the given property on every item in the current selection.
-		/// Uses one shared COM state for the whole batch.
+		/// Writes/updates a set of properties to every item in the current selection.
 		/// </summary>
 		public void WriteToCurrentSelection(
 			string tabName,
-			string propertyName,
-			string propertyValue)
+			IDictionary<string, string> properties)
 		{
 			var doc = Application.ActiveDocument;
 
@@ -29,61 +27,55 @@ namespace NavisLegacyPlugin.Services
 			if (doc.CurrentSelection.SelectedItems == null || doc.CurrentSelection.SelectedItems.Count == 0)
 				throw new InvalidOperationException("No items selected.");
 
+			if (string.IsNullOrWhiteSpace(tabName))
+				throw new ArgumentException("tabName is required.");
+
+			if (properties == null || properties.Count == 0)
+				throw new ArgumentException("At least one property is required.");
+
 			InwOpState10 state = null;
 
 			try
 			{
-				// IMPORTANT: get COM state once for the whole batch
+				// IMPORTANT: get COM state ONCE for the whole batch
 				state = (InwOpState10)ComApiBridge.State;
 
 				foreach (ModelItem item in doc.CurrentSelection.SelectedItems)
 				{
 					if (item != null)
 					{
-						WriteOrUpdateUserDefinedPropertyInternal(
+						WriteOrUpdateUserDefinedPropertiesInternal(
 							state,
 							item,
 							tabName,
-							propertyName,
-							propertyValue);
+							properties);
 					}
 				}
 			}
 			finally
 			{
 				// DO NOT release state.
-				// Releasing ComApiBridge.State causes "separated from underlying RCW" failures
-				// on subsequent items in the same batch. This follows from the issue in your
-				// current per-item release pattern. 
+				// Releasing ComApiBridge.State is what caused the RCW separation issue
+				// in the earlier per-item pattern.
 			}
 		}
 
 		/// <summary>
-		/// Optional helper retained for targeted testing by GUID within the current selection.
+		/// Convenience single-item entry point.
 		/// </summary>
-		public void WriteTestPropertyFromSelection(
-			Guid targetGuid,
+		public void WriteUserDefinedProperties(
+			ModelItem item,
 			string tabName,
-			string propertyName,
-			string propertyValue)
+			IDictionary<string, string> properties)
 		{
-			var doc = Application.ActiveDocument;
-			if (doc == null)
-				throw new InvalidOperationException("No active Navisworks document.");
+			if (item == null)
+				throw new ArgumentNullException(nameof(item));
 
-			ModelItem target = null;
+			if (string.IsNullOrWhiteSpace(tabName))
+				throw new ArgumentException("tabName is required.");
 
-			foreach (var item in doc.CurrentSelection.SelectedItems)
-			{
-				if (item != null && item.InstanceGuid == targetGuid)
-				{
-					target = item;
-					break;
-				}
-			}
-
-			if (target == null)
-				throw new InvalidOperationException("Target GUID not found in current selection.");
+			if (properties == null || properties.Count == 0)
+				throw new ArgumentException("At least one property is required.");
 
 			InwOpState10 state = null;
 
@@ -91,12 +83,11 @@ namespace NavisLegacyPlugin.Services
 			{
 				state = (InwOpState10)ComApiBridge.State;
 
-				WriteOrUpdateUserDefinedPropertyInternal(
+				WriteOrUpdateUserDefinedPropertiesInternal(
 					state,
-					target,
+					item,
 					tabName,
-					propertyName,
-					propertyValue);
+					properties);
 			}
 			finally
 			{
@@ -105,7 +96,7 @@ namespace NavisLegacyPlugin.Services
 		}
 
 		/// <summary>
-		/// Public single-item entry point.
+		/// Backward-compatible helper if you still want a one-property call site.
 		/// </summary>
 		public void WriteUserDefinedProperty(
 			ModelItem item,
@@ -113,52 +104,36 @@ namespace NavisLegacyPlugin.Services
 			string propertyName,
 			string propertyValue)
 		{
-			if (item == null)
-				throw new ArgumentNullException(nameof(item));
-
-			InwOpState10 state = null;
-
-			try
+			var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 			{
-				state = (InwOpState10)ComApiBridge.State;
+				{ propertyName, propertyValue }
+			};
 
-				WriteOrUpdateUserDefinedPropertyInternal(
-					state,
-					item,
-					tabName,
-					propertyName,
-					propertyValue);
-			}
-			finally
-			{
-				// DO NOT release state
-			}
+			WriteUserDefinedProperties(item, tabName, properties);
 		}
 
 		/// <summary>
-		/// Core logic:
-		/// - if target tab already exists, rebuild its property vector and overwrite it
-		/// - if target tab does not exist, create it as a new user-defined tab
+		/// Backward-compatible selection helper for one property.
 		/// </summary>
-		private void WriteOrUpdateUserDefinedPropertyInternal(
-			InwOpState10 state,
-			ModelItem item,
+		public void WriteToCurrentSelection(
 			string tabName,
 			string propertyName,
 			string propertyValue)
 		{
-			if (state == null)
-				throw new ArgumentNullException(nameof(state));
+			var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+			{
+				{ propertyName, propertyValue }
+			};
 
-			if (item == null)
-				throw new ArgumentNullException(nameof(item));
+			WriteToCurrentSelection(tabName, properties);
+		}
 
-			if (string.IsNullOrWhiteSpace(tabName))
-				throw new ArgumentException("tabName is required.");
-
-			if (string.IsNullOrWhiteSpace(propertyName))
-				throw new ArgumentException("propertyName is required.");
-
+		private void WriteOrUpdateUserDefinedPropertiesInternal(
+			InwOpState10 state,
+			ModelItem item,
+			string tabName,
+			IDictionary<string, string> properties)
+		{
 			InwOaPath path = null;
 			InwGUIPropertyNode node = null;
 			InwGUIPropertyNode2 node2 = null;
@@ -171,10 +146,8 @@ namespace NavisLegacyPlugin.Services
 				node = state.GetGUIPropertyNode(path, true);
 				node2 = (InwGUIPropertyNode2)node;
 
-				int existingUserDefinedIndex;
 				InwGUIAttribute2 existingAttr;
-
-				existingUserDefinedIndex = FindExistingUserDefinedTab(
+				int existingUserDefinedIndex = FindExistingUserDefinedTab(
 					node2,
 					tabName,
 					out existingAttr);
@@ -182,13 +155,12 @@ namespace NavisLegacyPlugin.Services
 				if (existingUserDefinedIndex > 0 && existingAttr != null)
 				{
 					// Existing tab found:
-					// rebuild full vector, replace/append the target property,
-					// then overwrite the existing user-defined category.
-					propVec = BuildUpdatedPropertyVector(
+					// build a new vector that preserves unrelated existing properties
+					// and upserts all supplied properties.
+					propVec = BuildMergedPropertyVector(
 						state,
 						existingAttr,
-						propertyName,
-						propertyValue);
+						properties);
 
 					node2.SetUserDefined(
 						existingUserDefinedIndex,
@@ -198,12 +170,11 @@ namespace NavisLegacyPlugin.Services
 				}
 				else
 				{
-					// No matching tab found:
-					// Autodesk examples show index 0 for creating a NEW user-defined category.
-					propVec = CreateSinglePropertyVector(
+					// New tab:
+					// Autodesk examples show index 0 must be used to create a new user-defined category.
+					propVec = CreatePropertyVector(
 						state,
-						propertyName,
-						propertyValue);
+						properties);
 
 					node2.SetUserDefined(
 						0,
@@ -214,7 +185,6 @@ namespace NavisLegacyPlugin.Services
 			}
 			finally
 			{
-				// release ONLY per-item COM objects
 				SafeRelease(propVec);
 				SafeRelease(node2);
 				SafeRelease(node);
@@ -225,8 +195,7 @@ namespace NavisLegacyPlugin.Services
 		/// <summary>
 		/// Finds an existing user-defined tab by visible/custom tab name.
 		/// IMPORTANT:
-		/// Autodesk examples and accepted solution show that the first existing
-		/// user-defined category is index 1, not 0.
+		/// first existing user-defined tab is index 1, not 0.
 		/// </summary>
 		private int FindExistingUserDefinedTab(
 			InwGUIPropertyNode2 node2,
@@ -238,7 +207,6 @@ namespace NavisLegacyPlugin.Services
 			if (node2 == null)
 				return -1;
 
-			// 1-based index for existing user-defined tabs
 			int userDefinedIndex = 1;
 
 			foreach (InwGUIAttribute2 attr in (IEnumerable)node2.GUIAttributes())
@@ -264,52 +232,42 @@ namespace NavisLegacyPlugin.Services
 		}
 
 		/// <summary>
-		/// Creates a new property vector containing one property.
+		/// Create a new property vector from the supplied dictionary.
 		/// </summary>
-		private InwOaPropertyVec CreateSinglePropertyVector(
+		private InwOaPropertyVec CreatePropertyVector(
 			InwOpState10 state,
-			string propertyName,
-			string propertyValue)
+			IDictionary<string, string> properties)
 		{
 			var propVec = (InwOaPropertyVec)state.ObjectFactory(
 				nwEObjectType.eObjectType_nwOaPropertyVec,
 				null,
 				null);
 
-			InwOaProperty prop = null;
-
-			try
+			foreach (var kvp in properties)
 			{
-				prop = CreateStringProperty(state, propertyName, propertyValue);
-				propVec.Properties().Add(prop);
-
-				// COM object now owned by vector
-				prop = null;
-
-				return propVec;
+				AddProperty(state, propVec, kvp.Key, kvp.Value);
 			}
-			finally
-			{
-				SafeRelease(prop);
-			}
+
+			return propVec;
 		}
 
 		/// <summary>
-		/// Rebuilds the full property vector for an existing user-defined tab:
-		/// - copies all existing properties
-		/// - replaces (upserts) the target property
+		/// Merge supplied properties into an existing user-defined category:
+		/// - preserve existing properties that are not being replaced
+		/// - overwrite matching properties
+		/// - append any new ones
 		/// </summary>
-		private InwOaPropertyVec BuildUpdatedPropertyVector(
+		private InwOaPropertyVec BuildMergedPropertyVector(
 			InwOpState10 state,
 			InwGUIAttribute2 existingAttr,
-			string newPropertyName,
-			string newPropertyValue)
+			IDictionary<string, string> incomingProperties)
 		{
 			var propVec = (InwOaPropertyVec)state.ObjectFactory(
 				nwEObjectType.eObjectType_nwOaPropertyVec,
 				null,
 				null);
 
+			// 1) Copy all existing properties EXCEPT the ones we are replacing
 			if (existingAttr != null)
 			{
 				foreach (InwOaProperty p in (IEnumerable)existingAttr.Properties())
@@ -320,11 +278,11 @@ namespace NavisLegacyPlugin.Services
 					string existingInternalName = SafeString(p.name);
 					string existingUserName = SafeString(p.UserName);
 
-					bool sameProperty =
-						string.Equals(existingInternalName, newPropertyName, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(existingUserName, newPropertyName, StringComparison.OrdinalIgnoreCase);
+					bool isBeingReplaced =
+						incomingProperties.ContainsKey(existingInternalName) ||
+						(!string.IsNullOrWhiteSpace(existingUserName) && incomingProperties.ContainsKey(existingUserName));
 
-					if (sameProperty)
+					if (isBeingReplaced)
 						continue;
 
 					InwOaProperty copy = null;
@@ -344,7 +302,7 @@ namespace NavisLegacyPlugin.Services
 
 						propVec.Properties().Add(copy);
 
-						// COM object now owned by vector
+						// ownership transferred to propVec
 						copy = null;
 					}
 					finally
@@ -354,38 +312,43 @@ namespace NavisLegacyPlugin.Services
 				}
 			}
 
-			// Add/replace the requested property
-			InwOaProperty newProp = null;
-
-			try
+			// 2) Add all incoming properties (overwrite/append)
+			foreach (var kvp in incomingProperties)
 			{
-				newProp = CreateStringProperty(state, newPropertyName, newPropertyValue);
-				propVec.Properties().Add(newProp);
-				newProp = null;
-			}
-			finally
-			{
-				SafeRelease(newProp);
+				AddProperty(state, propVec, kvp.Key, kvp.Value);
 			}
 
 			return propVec;
 		}
 
-		private InwOaProperty CreateStringProperty(
+		private void AddProperty(
 			InwOpState10 state,
+			InwOaPropertyVec propVec,
 			string propertyName,
 			string propertyValue)
 		{
-			var prop = (InwOaProperty)state.ObjectFactory(
-				nwEObjectType.eObjectType_nwOaProperty,
-				null,
-				null);
+			InwOaProperty prop = null;
 
-			prop.name = propertyName;
-			prop.UserName = propertyName;
-			prop.value = propertyValue;
+			try
+			{
+				prop = (InwOaProperty)state.ObjectFactory(
+					nwEObjectType.eObjectType_nwOaProperty,
+					null,
+					null);
 
-			return prop;
+				prop.name = propertyName;
+				prop.UserName = propertyName;
+				prop.value = propertyValue;
+
+				propVec.Properties().Add(prop);
+
+				// ownership transferred to propVec
+				prop = null;
+			}
+			finally
+			{
+				SafeRelease(prop);
+			}
 		}
 
 		private static string SafeString(object value)
@@ -402,7 +365,7 @@ namespace NavisLegacyPlugin.Services
 			}
 			catch
 			{
-				// Never throw during COM cleanup
+				// never throw during COM cleanup
 			}
 		}
 	}
