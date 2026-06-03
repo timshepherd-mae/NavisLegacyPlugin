@@ -7,21 +7,62 @@
 
 	<UserControl.Resources>
 		<conv:DoubleFormatConverter x:Key="DoubleFormatConverter" />
+		<conv:EqualsConverter x:Key="EqualsConverter" />
 	</UserControl.Resources>
 
 
 	<Grid Margin="10">
+
 		<Grid.RowDefinitions>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>			<!-- Mode -->
+			<RowDefinition Height="Auto"/>			<!-- Write -->
+			<RowDefinition Height="Auto"/>			<!-- GetData -->
+			<RowDefinition Height="Auto"/>			<!-- Status -->
+			<RowDefinition Height="Auto"/>			<!-- Binding -->
 		</Grid.RowDefinitions>
 
-		<Button Content="Write Test Property"
-                Width="160"
-                Command="{Binding WriteTestCommand}" />
+		<!-- ✅ Write Mode -->
+		<StackPanel Grid.Row="0"
+                Orientation="Horizontal"
+                Margin="0,0,0,10">
 
-		<TextBlock Grid.Row="1"
-                   Margin="0,10,0,0"
-                   Text="{Binding Status}" />
+			<TextBlock Text="Write to:"
+                   VerticalAlignment="Center"
+                   Margin="0,0,10,0"/>
+
+
+			
+			<RadioButton Content="Branch"
+                     GroupName="WriteTarget"
+                     IsChecked="{Binding WriteMode, Converter={StaticResource EqualsConverter}, ConverterParameter=Branch}"
+                     Margin="0,0,10,0"/>
+
+			<RadioButton Content="Leaf"
+                     GroupName="WriteTarget"
+                     IsChecked="{Binding WriteMode, Converter={StaticResource EqualsConverter}, ConverterParameter=Leaf}"/>
+			
+		</StackPanel>
+
+		<!-- ✅ Existing button -->
+		<Button Grid.Row="1"
+            Content="Write Test Property"
+            Width="160"
+            Command="{Binding WriteTestCommand}" />
+
+		<!-- ✅ NEW Get Data button -->
+		<Button Grid.Row="2"
+            Content="Get Data"
+            Width="160"
+            Margin="0,10,0,0"
+            Command="{Binding GetDataCommand}" />
+
+		<!-- ✅ Status -->
+		<TextBlock Grid.Row="3"
+               Margin="0,10,0,0"
+               Text="{Binding Status}" />
+
+		<TextBlock  Grid.Row="4" Text="{Binding WriteMode}" />
+
 	</Grid>
+	
 </UserControl>

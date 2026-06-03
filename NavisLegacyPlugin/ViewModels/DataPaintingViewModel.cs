@@ -23,6 +23,20 @@ namespace NavisLegacyPlugin.ViewModels
 			private set { _status = value; OnPropertyChanged(); }
 		}
 
+		private string _writeMode = "Branch";
+		public string WriteMode
+		{
+			get { return _writeMode; }
+			set
+			{
+				if (_writeMode != value)
+				{
+					_writeMode = value;
+					OnPropertyChanged(nameof(WriteMode));
+				}
+			}
+		}
+
 		// HARD-CODED TEST VALUES (replace these)
 		private const string TestGuidString = "68bdb303-1e93-582a-b49e-938165be3a61";
 		private const string TestTabName = "MAE";
@@ -43,7 +57,7 @@ namespace NavisLegacyPlugin.ViewModels
 			try
 			{
 				Status = "Writing...";
-
+				System.Diagnostics.Debug.WriteLine($"WriteMode = {WriteMode}");
 
 				var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
@@ -52,7 +66,9 @@ namespace NavisLegacyPlugin.ViewModels
 					{ "RID_3", "THIRD_" + DateTime.Now.ToString("HHmmss") }	
 				};
 
-				_writer.WriteToCurrentSelection("Synchro", props);
+				bool writeToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase);
+
+				_writer.WriteToCurrentSelection("Synchro", props, writeToLeafItems);
 
 				Status = "Write complete.";
 			}

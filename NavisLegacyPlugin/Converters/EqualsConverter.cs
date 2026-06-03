@@ -22,10 +22,11 @@ namespace NavisLegacyPlugin.Converters
 		/// Only returns the parameter when checked = true.
 		/// </summary>
 		public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+
 		{
 			if (value is bool isChecked && isChecked)
 			{
-				return parameter?.ToString();
+				return parameter;
 			}
 
 			return Binding.DoNothing;
