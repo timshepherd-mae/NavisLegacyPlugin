@@ -85,32 +85,43 @@ namespace NavisLegacyPlugin.ViewModels
 				Status = "Reading CSV...";
 
 				// ✅ HARD-CODED TEST SETTINGS
-				string filePath = @"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\datapaint_import_01.csv";
+				string filePath = @"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\data.csv";
 				int startRow = 2;
 
+
 				var columnMap = new Dictionary<string, string>
-		{
-			{ "RID", "RID" },
-			{ "TaskName", "TaskName" }
-		};
+				{
+					{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
+					{ "3DUF:RID", "Synchro.RID" }
+				};
 
 				var table = _csvService.ReadCsv(filePath, startRow);
 
-				int rowIndex = 0;
+
 
 				foreach (DataRow row in table.Rows)
 				{
 					var mapped = PropertyMappingHelper.MapRow(row, columnMap);
 
-					// ✅ DEBUG OUTPUT
-					System.Diagnostics.Debug.WriteLine($"Row {rowIndex}");
+					// ✅ MATCH VALUE
+					if (!mapped.ContainsKey("Synchro.SynchroID"))
+						continue;
 
-					foreach (var kvp in mapped)
+					string matchValue = mapped["Synchro.SynchroID"];
+
+					// ✅ DEBUG
+					System.Diagnostics.Debug.WriteLine($"Matching SynchroID = {matchValue}");
+
+					// ✅ REMOVE MATCH KEY FROM WRITE SET
+					// (we don’t want to overwrite it unintentionally)
+					var writeProperties = new Dictionary<string, string>(mapped);
+					writeProperties.Remove("Synchro.SynchroID");
+
+					// ✅ TEMP: PRINT ONLY (SAFE STAGE)
+					foreach (var kvp in writeProperties)
 					{
-						System.Diagnostics.Debug.WriteLine($"  {kvp.Key} = {kvp.Value}");
+						System.Diagnostics.Debug.WriteLine($"  WRITE {kvp.Key} = {kvp.Value}");
 					}
-
-					rowIndex++;
 				}
 
 				Status = $"Loaded {table.Rows.Count} rows.";
