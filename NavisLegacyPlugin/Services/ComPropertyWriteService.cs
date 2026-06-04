@@ -80,6 +80,23 @@ namespace NavisLegacyPlugin.Services
 			}
 		}
 
+		public void WriteUserDefinedProperties(
+			ModelItem item,
+			string tabName,
+			IDictionary<string, string> properties)
+		{
+			if (item == null)
+				return;
+
+			var state = (InwOpState10)ComApiBridge.State;
+
+			WriteOrUpdateUserDefinedPropertiesInternal(
+				state,
+				item,
+				tabName,
+				properties);
+		}
+
 		// ✅ FIXED: Leaf traversal
 		private void CollectLeafItems(ModelItem item, List<ModelItem> results)
 		{

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Windows.Input;
+using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Services;
 
@@ -103,27 +104,43 @@ namespace NavisLegacyPlugin.ViewModels
 				{
 					var mapped = PropertyMappingHelper.MapRow(row, columnMap);
 
-					// ✅ MATCH VALUE
+					// ✅ STEP 1 — Extract match key
 					if (!mapped.ContainsKey("Synchro.SynchroID"))
 						continue;
 
-					string matchValue = mapped["Synchro.SynchroID"];
+					string synchroIdValue = mapped["Synchro.SynchroID"];
 
-					// ✅ DEBUG
-					System.Diagnostics.Debug.WriteLine($"Matching SynchroID = {matchValue}");
+					if (string.IsNullOrWhiteSpace(synchroIdValue))
+						continue;
 
-					// ✅ REMOVE MATCH KEY FROM WRITE SET
-					// (we don’t want to overwrite it unintentionally)
+					System.Diagnostics.Debug.WriteLine($"Matching SynchroID = {synchroIdValue}");
+
+					// ✅ STEP 2 — Prepare properties to WRITE
 					var writeProperties = new Dictionary<string, string>(mapped);
+
+					// ❗ Remove match key so we don't overwrite it
 					writeProperties.Remove("Synchro.SynchroID");
 
-					// ✅ TEMP: PRINT ONLY (SAFE STAGE)
-					foreach (var kvp in writeProperties)
-					{
-						System.Diagnostics.Debug.WriteLine($"  WRITE {kvp.Key} = {kvp.Value}");
-					}
-				}
+					if (writeProperties.Count == 0)
+						continue;
 
+					// ✅ STEP 3 — Find matching Navis item
+					var targetItem = FindItemByProperty(
+						"Synchro",
+						"SynchroID",
+						synchroIdValue);
+
+					if (targetItem == null)
+					{
+						System.Diagnostics.Debug.WriteLine($"❌ No match found for SynchroID = {synchroIdValue}");
+						continue;
+					}
+
+					// ✅ STEP 4 — APPLY properties
+					_writer.WriteUserDefinedProperties(targetItem, "Synchro", writeProperties);
+
+					System.Diagnostics.Debug.WriteLine($"✅ Applied RID to item with SynchroID = {synchroIdValue}");
+				}
 				Status = $"Loaded {table.Rows.Count} rows.";
 			}
 			catch (Exception ex)
@@ -131,5 +148,42 @@ namespace NavisLegacyPlugin.ViewModels
 				Status = "Failed: " + ex.Message;
 			}
 		}
+
+
+		private ModelItem FindItemByProperty(string tabName, string propertyName, string value)
+		{
+			var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
+
+			if (doc == null)
+				return null;
+
+			foreach (Model model in doc.Models)
+			{
+				foreach (ModelItem item in model.RootItem.DescendantsAndSelf)
+				{
+					foreach (PropertyCategory cat in item.PropertyCategories)
+					{
+						if (!string.Equals(cat.DisplayName, tabName, StringComparison.OrdinalIgnoreCase))
+							continue;
+
+						foreach (DataProperty prop in cat.Properties)
+						{
+							if (!string.Equals(prop.DisplayName, propertyName, StringComparison.OrdinalIgnoreCase))
+								continue;
+
+							if (prop.Value != null &&
+								string.Equals(prop.Value.ToDisplayString(), value, StringComparison.OrdinalIgnoreCase))
+							{
+								return item;
+							}
+						}
+					}
+				}
+			}
+
+			return null;
+		}
+
+
 	}
 }
