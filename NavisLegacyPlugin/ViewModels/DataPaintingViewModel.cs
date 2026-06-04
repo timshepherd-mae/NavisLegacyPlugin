@@ -21,7 +21,11 @@ namespace NavisLegacyPlugin.ViewModels
 		public string Status
 		{
 			get { return _status; }
-			private set { _status = value; OnPropertyChanged(); }
+			private set
+			{
+				_status = value;
+				OnPropertyChanged();
+			}
 		}
 
 		private string _writeMode = "Branch";
@@ -38,12 +42,6 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
-		// HARD-CODED TEST VALUES (replace these)
-		private const string TestGuidString = "68bdb303-1e93-582a-b49e-938165be3a61";
-		private const string TestTabName = "MAE";
-		private const string TestPropName = "PaintTest";
-		private const string TestPropValue = "Hello from Data Painting";
-
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
 			_writer = writer;
@@ -52,22 +50,23 @@ namespace NavisLegacyPlugin.ViewModels
 			GetDataCommand = new RelayCommand(GetData);
 		}
 
-
 		private void WriteTest()
 		{
 			try
 			{
 				Status = "Writing...";
+
 				System.Diagnostics.Debug.WriteLine($"WriteMode = {WriteMode}");
 
 				var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
 					{ "RID", DateTime.Now.ToString("HHmmss") },
 					{ "RID_2", "SECOND_" + DateTime.Now.ToString("HHmmss") },
-					{ "RID_3", "THIRD_" + DateTime.Now.ToString("HHmmss") }	
+					{ "RID_3", "THIRD_" + DateTime.Now.ToString("HHmmss") }
 				};
 
-				bool writeToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase);
+				bool writeToLeafItems =
+					string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase);
 
 				_writer.WriteToCurrentSelection("Synchro", props, writeToLeafItems);
 
@@ -89,23 +88,27 @@ namespace NavisLegacyPlugin.ViewModels
 				string filePath = @"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\data.csv";
 				int startRow = 2;
 
-				// ✅ Synchro export column -> Navis target property mapping
+				// ✅ Synchro export column -> Navis logical target
 				var columnMap = new Dictionary<string, string>
 				{
 					{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
 					{ "3DUF:RID", "Synchro.RID" }
 				};
 
-				var table = _csvService.ReadCsv(filePath, startRow);
+				var table = _csvService.ReadCsv(
+					filePath, 
+					startRow,
+					"3DUF:RID"
+				);
 
+				System.Diagnostics.Debug.WriteLine($"Reading file: {filePath}");
+				System.Diagnostics.Debug.WriteLine($"CSV rows loaded: {table.Rows.Count}");
 
-				// DEBUG FOR CSV COLUMNS
 				System.Diagnostics.Debug.WriteLine("CSV Columns:");
 				foreach (DataColumn col in table.Columns)
 				{
-					System.Diagnostics.Debug.WriteLine($"  '{col.ColumnName}'");
+					System.Diagnostics.Debug.WriteLine($"'{col.ColumnName}'");
 				}
-
 
 				// ✅ Build lookup once for performance
 				var synchroLookup = BuildSynchroLookup();
@@ -134,7 +137,7 @@ namespace NavisLegacyPlugin.ViewModels
 						continue;
 					}
 
-					// Remove the match key from the write dictionary
+					// Remove match key from write set
 					var writeProperties = new Dictionary<string, string>(mapped, StringComparer.OrdinalIgnoreCase);
 					writeProperties.Remove("Synchro.SynchroID");
 
@@ -155,16 +158,49 @@ namespace NavisLegacyPlugin.ViewModels
 
 					var targetItem = synchroLookup[synchroIdValue];
 
-					_writer.WriteUserDefinedProperties(
-						targetItem,
-						"Synchro",
-						writeProperties);
-
-					System.Diagnostics.Debug.WriteLine($"✅ Applied properties to SynchroID = {synchroIdValue}");
+					// ✅ Split "Tab.Property" -> group by tab
+					var groupedByTab = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
 
 					foreach (var kvp in writeProperties)
 					{
-						System.Diagnostics.Debug.WriteLine($"   {kvp.Key} = {kvp.Value}");
+						string fullKey = kvp.Key;
+						string value = kvp.Value;
+
+						var parts = fullKey.Split('.');
+
+						if (parts.Length != 2)
+						{
+							System.Diagnostics.Debug.WriteLine($"Invalid property format: {fullKey}");
+							continue;
+						}
+
+						string tabName = parts[0];
+						string propName = parts[1];
+
+						if (!groupedByTab.ContainsKey(tabName))
+						{
+							groupedByTab[tabName] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+						}
+
+						groupedByTab[tabName][propName] = value;
+					}
+
+					foreach (var tab in groupedByTab)
+					{
+						string tabName = tab.Key;
+						var propsForTab = tab.Value;
+
+						_writer.WriteUserDefinedProperties(
+							targetItem,
+							tabName,
+							propsForTab);
+
+						System.Diagnostics.Debug.WriteLine($"✅ Applied tab '{tabName}' to SynchroID = {synchroIdValue}");
+
+						foreach (var kvp in propsForTab)
+						{
+							System.Diagnostics.Debug.WriteLine($"   {kvp.Key} = {kvp.Value}");
+						}
 					}
 
 					matchedCount++;
@@ -181,10 +217,9 @@ namespace NavisLegacyPlugin.ViewModels
 
 		private Dictionary<string, ModelItem> BuildSynchroLookup()
 		{
-			var lookup = new Dictionary<string, ModelItem>();
+			var lookup = new Dictionary<string, ModelItem>(StringComparer.OrdinalIgnoreCase);
 
 			var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
-
 			if (doc == null)
 				return lookup;
 
@@ -202,7 +237,7 @@ namespace NavisLegacyPlugin.ViewModels
 							if (!string.Equals(prop.DisplayName, "SynchroID", StringComparison.OrdinalIgnoreCase))
 								continue;
 
-							var value = prop.Value?.ToDisplayString();
+							var value = prop.Value != null ? prop.Value.ToDisplayString() : null;
 
 							if (!string.IsNullOrWhiteSpace(value) && !lookup.ContainsKey(value))
 							{
@@ -213,45 +248,8 @@ namespace NavisLegacyPlugin.ViewModels
 				}
 			}
 
-			System.Diagnostics.Debug.WriteLine($"Lookup built: {lookup.Count} items");
-
+			System.Diagnostics.Debug.WriteLine($"Lookup built: {lookup.Count} Synchro items");
 			return lookup;
 		}
-
-		private ModelItem FindItemByProperty(string tabName, string propertyName, string value)
-		{
-			var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
-
-			if (doc == null)
-				return null;
-
-			foreach (Model model in doc.Models)
-			{
-				foreach (ModelItem item in model.RootItem.DescendantsAndSelf)
-				{
-					foreach (PropertyCategory cat in item.PropertyCategories)
-					{
-						if (!string.Equals(cat.DisplayName, tabName, StringComparison.OrdinalIgnoreCase))
-							continue;
-
-						foreach (DataProperty prop in cat.Properties)
-						{
-							if (!string.Equals(prop.DisplayName, propertyName, StringComparison.OrdinalIgnoreCase))
-								continue;
-
-							if (prop.Value != null &&
-								string.Equals(prop.Value.ToDisplayString(), value, StringComparison.OrdinalIgnoreCase))
-							{
-								return item;
-							}
-						}
-					}
-				}
-			}
-
-			return null;
-		}
-
-
 	}
 }
