@@ -144,7 +144,17 @@ namespace NavisLegacyPlugin.ViewModels
 					System.Windows.Threading.DispatcherPriority.Background);
 
 				ProgressText = "Building Synchro lookup...";
-				var synchroLookup = _modelLookupService.BuildLookup("Synchro", "SynchroID");
+
+
+				var lookupProgress = new Progress<int>(count =>
+				{
+					ProgressText = $"Building lookup... scanned {count} items";
+				});
+
+				var synchroLookup = await _modelLookupService.BuildLookupWithProgressAsync(
+					"Synchro",
+					"SynchroID",
+					lookupProgress);
 
 				ProgressPercent = 35;
 				await System.Windows.Application.Current.Dispatcher.InvokeAsync(

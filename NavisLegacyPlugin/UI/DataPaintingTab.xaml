@@ -54,7 +54,7 @@
 
 		<!-- Get Data button -->
 		<Button Grid.Row="2"
-            Content="Get Data"
+            Content="Get Synchro Data"
             Width="160"
             Margin="0,10,0,0"
             Command="{Binding GetDataCommand}"
