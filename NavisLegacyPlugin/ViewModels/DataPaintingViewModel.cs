@@ -13,6 +13,7 @@ namespace NavisLegacyPlugin.ViewModels
 	{
 		private readonly ComPropertyWriteService _writer;
 		private readonly CsvDataService _csvService = new CsvDataService();
+		private readonly ModelLookupService _modelLookupService = new ModelLookupService();
 
 		public ICommand WriteTestCommand { get; }
 		public ICommand GetDataCommand { get; }
@@ -26,6 +27,27 @@ namespace NavisLegacyPlugin.ViewModels
 				_status = value;
 				OnPropertyChanged();
 			}
+		}
+
+		private int _progressPercent;
+		public int ProgressPercent
+		{
+			get { return _progressPercent; }
+			set { _progressPercent = value; OnPropertyChanged(); }
+		}
+
+		private string _progressText = "";
+		public string ProgressText
+		{
+			get { return _progressText; }
+			set { _progressText = value; OnPropertyChanged(); }
+		}
+
+		private bool _isBusy;
+		public bool IsBusy
+		{
+			get { return _isBusy; }
+			set { _isBusy = value; OnPropertyChanged(); }
 		}
 
 		private string _writeMode = "Branch";
@@ -78,178 +100,115 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
-		private void GetData()
+		private async void GetData()
 		{
 			try
 			{
+				IsBusy = true;
+				ProgressPercent = 0;
+				ProgressText = "Reading CSV...";
 				Status = "Reading CSV...";
 
-				// ✅ HARD-CODED TEST SETTINGS
+				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => { },
+					System.Windows.Threading.DispatcherPriority.Background);
+
 				string filePath = @"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\data.csv";
 				int startRow = 2;
 
-				// ✅ Synchro export column -> Navis logical target
 				var columnMap = new Dictionary<string, string>
 				{
 					{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
 					{ "3DUF:RID", "Synchro.RID" }
 				};
 
-				var table = _csvService.ReadCsv(
-					filePath, 
-					startRow,
-					"3DUF:RID"
-				);
 
-				System.Diagnostics.Debug.WriteLine($"Reading file: {filePath}");
-				System.Diagnostics.Debug.WriteLine($"CSV rows loaded: {table.Rows.Count}");
+				ProgressText = "Reading CSV...";
 
-				System.Diagnostics.Debug.WriteLine("CSV Columns:");
-				foreach (DataColumn col in table.Columns)
+				var progress = new Progress<int>(rowsRead =>
 				{
-					System.Diagnostics.Debug.WriteLine($"'{col.ColumnName}'");
-				}
+					ProgressText = $"Reading CSV... {rowsRead} rows";
+				});
 
-				// ✅ Build lookup once for performance
-				var synchroLookup = BuildSynchroLookup();
+				var table = _csvService.ReadCsvWithProgress(
+					filePath,
+					startRow,
+					"3DUF:RID",
+					progress);
+
+
+				ProgressPercent = 15;
+				ProgressText = $"CSV loaded: {table.Rows.Count} rows";
+				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => { },
+					System.Windows.Threading.DispatcherPriority.Background);
+
+				ProgressText = "Building Synchro lookup...";
+				var synchroLookup = _modelLookupService.BuildLookup("Synchro", "SynchroID");
+
+				ProgressPercent = 35;
+				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => { },
+					System.Windows.Threading.DispatcherPriority.Background);
 
 				int rowIndex = 0;
 				int matchedCount = 0;
 				int unmatchedCount = 0;
+				int total = table.Rows.Count;
 
 				foreach (DataRow row in table.Rows)
 				{
-					var mapped = PropertyMappingHelper.MapRow(row, columnMap);
-
-					if (!mapped.ContainsKey("Synchro.SynchroID"))
-					{
-						System.Diagnostics.Debug.WriteLine($"Row {rowIndex}: missing Synchro.SynchroID");
-						rowIndex++;
-						continue;
-					}
-
-					string synchroIdValue = mapped["Synchro.SynchroID"];
-
-					if (string.IsNullOrWhiteSpace(synchroIdValue))
-					{
-						System.Diagnostics.Debug.WriteLine($"Row {rowIndex}: blank Synchro.SynchroID");
-						rowIndex++;
-						continue;
-					}
-
-					// Remove match key from write set
-					var writeProperties = new Dictionary<string, string>(mapped, StringComparer.OrdinalIgnoreCase);
-					writeProperties.Remove("Synchro.SynchroID");
-
-					if (writeProperties.Count == 0)
-					{
-						System.Diagnostics.Debug.WriteLine($"Row {rowIndex}: no writable properties");
-						rowIndex++;
-						continue;
-					}
-
-					if (!synchroLookup.ContainsKey(synchroIdValue))
-					{
-						System.Diagnostics.Debug.WriteLine($"❌ No Navis match for SynchroID = {synchroIdValue}");
-						unmatchedCount++;
-						rowIndex++;
-						continue;
-					}
-
-					var targetItem = synchroLookup[synchroIdValue];
-
-					// ✅ Split "Tab.Property" -> group by tab
-					var groupedByTab = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-
-					foreach (var kvp in writeProperties)
-					{
-						string fullKey = kvp.Key;
-						string value = kvp.Value;
-
-						var parts = fullKey.Split('.');
-
-						if (parts.Length != 2)
-						{
-							System.Diagnostics.Debug.WriteLine($"Invalid property format: {fullKey}");
-							continue;
-						}
-
-						string tabName = parts[0];
-						string propName = parts[1];
-
-						if (!groupedByTab.ContainsKey(tabName))
-						{
-							groupedByTab[tabName] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-						}
-
-						groupedByTab[tabName][propName] = value;
-					}
-
-					foreach (var tab in groupedByTab)
-					{
-						string tabName = tab.Key;
-						var propsForTab = tab.Value;
-
-						_writer.WriteUserDefinedProperties(
-							targetItem,
-							tabName,
-							propsForTab);
-
-						System.Diagnostics.Debug.WriteLine($"✅ Applied tab '{tabName}' to SynchroID = {synchroIdValue}");
-
-						foreach (var kvp in propsForTab)
-						{
-							System.Diagnostics.Debug.WriteLine($"   {kvp.Key} = {kvp.Value}");
-						}
-					}
-
-					matchedCount++;
 					rowIndex++;
+
+					var mapped = PropertyMappingHelper.MapRow(row, columnMap);
+					var instruction = PaintInstructionBuilder.Build(mapped, "Synchro.SynchroID");
+
+					if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
+						continue;
+
+					if (!synchroLookup.ContainsKey(instruction.MatchValue))
+					{
+						unmatchedCount++;
+					}
+					else
+					{
+						var targetItem = synchroLookup[instruction.MatchValue];
+
+						foreach (var tab in instruction.PropertiesByTab)
+						{
+							_writer.WriteUserDefinedProperties(
+								targetItem,
+								tab.Key,
+								tab.Value);
+						}
+
+						matchedCount++;
+					}
+
+					if (rowIndex % 25 == 0)
+					{
+						ProgressPercent = 35 + (int)(65.0 * rowIndex / total);
+						ProgressText = $"Processing row {rowIndex} of {total}...";
+						await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+							() => { },
+							System.Windows.Threading.DispatcherPriority.Background);
+					}
 				}
 
-				Status = $"Loaded {table.Rows.Count} rows. Matched: {matchedCount}, Unmatched: {unmatchedCount}";
+				ProgressPercent = 100;
+				ProgressText = $"Complete. Matched: {matchedCount}, Unmatched: {unmatchedCount}";
+				Status = ProgressText;
 			}
 			catch (Exception ex)
 			{
 				Status = "Failed: " + ex.Message;
+				ProgressText = Status;
 			}
-		}
-
-		private Dictionary<string, ModelItem> BuildSynchroLookup()
-		{
-			var lookup = new Dictionary<string, ModelItem>(StringComparer.OrdinalIgnoreCase);
-
-			var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
-			if (doc == null)
-				return lookup;
-
-			foreach (Model model in doc.Models)
+			finally
 			{
-				foreach (ModelItem item in model.RootItem.DescendantsAndSelf)
-				{
-					foreach (PropertyCategory cat in item.PropertyCategories)
-					{
-						if (!string.Equals(cat.DisplayName, "Synchro", StringComparison.OrdinalIgnoreCase))
-							continue;
-
-						foreach (DataProperty prop in cat.Properties)
-						{
-							if (!string.Equals(prop.DisplayName, "SynchroID", StringComparison.OrdinalIgnoreCase))
-								continue;
-
-							var value = prop.Value != null ? prop.Value.ToDisplayString() : null;
-
-							if (!string.IsNullOrWhiteSpace(value) && !lookup.ContainsKey(value))
-							{
-								lookup[value] = item;
-							}
-						}
-					}
-				}
+				IsBusy = false;
 			}
-
-			System.Diagnostics.Debug.WriteLine($"Lookup built: {lookup.Count} Synchro items");
-			return lookup;
 		}
+
 	}
 }
