@@ -90,7 +90,7 @@ namespace NavisLegacyPlugin.ViewModels
 				bool writeToLeafItems =
 					string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase);
 
-				_writer.WriteToCurrentSelection("Synchro", props, writeToLeafItems);
+				_writer.WriteToCurrentSelection("MAE4D", props, writeToLeafItems);
 
 				Status = "Write complete.";
 			}
@@ -119,7 +119,7 @@ namespace NavisLegacyPlugin.ViewModels
 				var columnMap = new Dictionary<string, string>
 				{
 					{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
-					{ "3DUF:RID", "Synchro.RID" }
+					{ "3DUF:RID", "MAE-4D.RID" }
 				};
 
 
