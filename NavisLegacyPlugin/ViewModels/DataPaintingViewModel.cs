@@ -6,7 +6,6 @@ using System.Windows.Input;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Services;
-
 namespace NavisLegacyPlugin.ViewModels
 {
 	public class DataPaintingViewModel : ViewModelBase
@@ -14,72 +13,36 @@ namespace NavisLegacyPlugin.ViewModels
 		private readonly ComPropertyWriteService _writer;
 		private readonly CsvDataService _csvService = new CsvDataService();
 		private readonly ModelLookupService _modelLookupService = new ModelLookupService();
-
 		public ICommand WriteTestCommand { get; }
 		public ICommand GetDataCommand { get; }
 
 		private string _status = "Ready.";
 		public string Status
 		{
-			get { return _status; }
+			get => _status;
 			private set { _status = value; OnPropertyChanged(); }
-		}
-
-		private string _writeMode = "Branch";
-		public string WriteMode
-		{
-			get { return _writeMode; }
-			set
-			{
-				if (_writeMode != value)
-				{
-					_writeMode = value;
-					OnPropertyChanged(nameof(WriteMode));
-				}
-			}
 		}
 
 		private int _progressPercent;
 		public int ProgressPercent
 		{
-			get { return _progressPercent; }
+			get => _progressPercent;
 			set { _progressPercent = value; OnPropertyChanged(); }
 		}
 
 		private string _progressText = "";
 		public string ProgressText
 		{
-			get { return _progressText; }
+			get => _progressText;
 			set { _progressText = value; OnPropertyChanged(); }
 		}
 
 		private bool _isBusy;
 		public bool IsBusy
 		{
-			get { return _isBusy; }
+			get => _isBusy;
 			set { _isBusy = value; OnPropertyChanged(); }
 		}
-
-
-		private class PendingWriteBatch
-		{
-			public string TabName { get; set; }
-			public Dictionary<string, string> Properties { get; set; }
-			public List<ModelItem> Items { get; } = new List<ModelItem>();
-		}
-
-		private string BuildBatchKey(string tabName, IDictionary<string, string> properties)
-		{
-			var orderedParts = new List<string>();
-
-			foreach (var kvp in properties.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
-			{
-				orderedParts.Add($"{kvp.Key}={kvp.Value}");
-			}
-
-			return tabName + "||" + string.Join("|", orderedParts);
-		}
-
 
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
@@ -91,29 +54,12 @@ namespace NavisLegacyPlugin.ViewModels
 
 		private void WriteTest()
 		{
-			try
-			{
-				Status = "Writing...";
-				System.Diagnostics.Debug.WriteLine($"WriteMode = {WriteMode}");
+			var props = new Dictionary<string, string>
+		{
+			{ "RID", DateTime.Now.ToString("HHmmss") }
+		};
 
-				var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-				{
-					{ "RID", DateTime.Now.ToString("HHmmss") },
-					{ "RID_2", "SECOND_" + DateTime.Now.ToString("HHmmss") },
-					{ "RID_3", "THIRD_" + DateTime.Now.ToString("HHmmss") }
-				};
-
-				bool writeToLeafItems =
-					string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase);
-
-				_writer.WriteToCurrentSelection("Synchro", props, writeToLeafItems);
-
-				Status = "Write complete.";
-			}
-			catch (Exception ex)
-			{
-				Status = "Failed: " + ex.Message;
-			}
+			_writer.WriteToCurrentSelection("Synchro", props, false);
 		}
 
 		private async void GetData()
@@ -121,49 +67,37 @@ namespace NavisLegacyPlugin.ViewModels
 			try
 			{
 				IsBusy = true;
-				ProgressPercent = 0;
 				ProgressText = "Reading CSV...";
-				Status = "Reading CSV...";
 
 				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 					() => { },
 					System.Windows.Threading.DispatcherPriority.Background);
 
-				string filePath = @"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\data.csv";
-				int startRow = 2;
-
 				var columnMap = new Dictionary<string, string>
-				{
-					{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
-					{ "3DUF:RID", "MAE-4D.RID" }
-				};
+			{
+				{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
+				{ "3DUF:RID", "MAE-4D.RID" }
+			};
 
-				// ✅ CSV PROGRESS
-				var csvProgress = new Progress<int>(rowsRead =>
+				var csvProgress = new Progress<int>(rows =>
 				{
-					ProgressText = $"Reading CSV... {rowsRead} rows";
+					ProgressText = $"Reading CSV... {rows}";
 				});
 
 				var table = _csvService.ReadCsvWithProgress(
-					filePath,
-					startRow,
+					@"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\data.csv",
+					2,
 					"3DUF:RID",
 					csvProgress);
 
 				ProgressPercent = 15;
-				ProgressText = $"CSV loaded: {table.Rows.Count} rows";
 
-				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
-					() => { },
-					System.Windows.Threading.DispatcherPriority.Background);
-
-				// ✅ LOOKUP (NEW CLEAN VERSION)
 				var lookupProgress = new Progress<ModelLookupService.LookupProgressInfo>(info =>
 				{
 					ProgressText = $"{info.Stage} {info.ItemsScanned}";
 				});
 
-				var synchroLookup = await _modelLookupService.GetOrBuildLookupAsync(
+				var lookup = await _modelLookupService.GetOrBuildLookupAsync(
 					"Synchro",
 					"SynchroID",
 					lookupProgress);
@@ -175,11 +109,13 @@ namespace NavisLegacyPlugin.ViewModels
 					System.Windows.Threading.DispatcherPriority.Background);
 
 				int rowIndex = 0;
-				int matchedCount = 0;
-				int unmatchedCount = 0;
+				int matched = 0;
+				int unmatched = 0;
 				int total = table.Rows.Count;
 
-				var pendingBatches = new Dictionary<string, PendingWriteBatch>(StringComparer.OrdinalIgnoreCase);
+				// ✅ NEW: group by ModelItem
+				var itemWriteMap =
+					new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
 				foreach (DataRow row in table.Rows)
 				{
@@ -191,31 +127,32 @@ namespace NavisLegacyPlugin.ViewModels
 					if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
 						continue;
 
-					if (!synchroLookup.ContainsKey(instruction.MatchValue))
+					if (!lookup.TryGetValue(instruction.MatchValue, out var item))
 					{
-						unmatchedCount++;
+						unmatched++;
+						continue;
 					}
-					else
+
+					matched++;
+
+					foreach (var tab in instruction.PropertiesByTab)
 					{
-						var targetItem = synchroLookup[instruction.MatchValue];
-
-						foreach (var tab in instruction.PropertiesByTab)
+						if (!itemWriteMap.TryGetValue(item, out var tabDict))
 						{
-							string batchKey = BuildBatchKey(tab.Key, tab.Value);
-
-							if (!pendingBatches.ContainsKey(batchKey))
-							{
-								pendingBatches[batchKey] = new PendingWriteBatch
-								{
-									TabName = tab.Key,
-									Properties = new Dictionary<string, string>(tab.Value, StringComparer.OrdinalIgnoreCase)
-								};
-							}
-
-							pendingBatches[batchKey].Items.Add(targetItem);
+							tabDict = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+							itemWriteMap[item] = tabDict;
 						}
 
-						matchedCount++;
+						if (!tabDict.TryGetValue(tab.Key, out var propDict))
+						{
+							propDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+							tabDict[tab.Key] = propDict;
+						}
+
+						foreach (var kvp in tab.Value)
+						{
+							propDict[kvp.Key] = kvp.Value;
+						}
 					}
 
 					if (rowIndex % 25 == 0)
@@ -229,23 +166,23 @@ namespace NavisLegacyPlugin.ViewModels
 					}
 				}
 
+				// ✅ WRITE PHASE (unchanged behaviour)
+				int itemIndex = 0;
+				int itemTotal = itemWriteMap.Count;
 
-				int batchIndex = 0;
-				int batchTotal = pendingBatches.Count;
-
-				foreach (var batch in pendingBatches.Values)
+				foreach (var entry in itemWriteMap)
 				{
-					batchIndex++;
-
-					_writer.WriteUserDefinedPropertiesToItems(
-						batch.Items,
-						batch.TabName,
-						batch.Properties);
-
-					if (batchIndex % 5 == 0 || batchIndex == batchTotal)
+					foreach (var tab in entry.Value)
 					{
-						ProgressPercent = 70 + (int)(30.0 * batchIndex / Math.Max(batchTotal, 1));
-						ProgressText = $"Writing batch {batchIndex} of {batchTotal}...";
+						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+					}
+
+					itemIndex++;
+
+					if (itemIndex % 5 == 0 || itemIndex == itemTotal)
+					{
+						ProgressPercent = 70 + (int)(30.0 * itemIndex / Math.Max(itemTotal, 1));
+						ProgressText = $"Writing item {itemIndex} of {itemTotal}...";
 
 						await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 							() => { },
@@ -253,16 +190,13 @@ namespace NavisLegacyPlugin.ViewModels
 					}
 				}
 
-
-
 				ProgressPercent = 100;
-				ProgressText = $"Complete. Matched: {matchedCount}, Unmatched: {unmatchedCount}";
+				ProgressText = $"Complete. Matched: {matched}, Unmatched: {unmatched}";
 				Status = ProgressText;
 			}
 			catch (Exception ex)
 			{
 				Status = "Failed: " + ex.Message;
-				ProgressText = Status;
 			}
 			finally
 			{
@@ -270,4 +204,5 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 	}
+
 }
