@@ -44,6 +44,17 @@ namespace NavisLegacyPlugin.ViewModels
 			set { _isBusy = value; OnPropertyChanged(); }
 		}
 
+		private string _writeMode = "Branch";
+		public string WriteMode
+		{
+			get => _writeMode;
+			set
+			{
+				_writeMode = value;
+				OnPropertyChanged();
+			}
+		}
+
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
 			_writer = writer;
@@ -60,6 +71,23 @@ namespace NavisLegacyPlugin.ViewModels
 		};
 
 			_writer.WriteToCurrentSelection("Synchro", props, false);
+		}
+
+		private void CollectLeafItems(ModelItem item, List<ModelItem> results)
+		{
+			if (item == null) return;
+
+			if (item.Children == null || !item.Children.Any())
+			{
+				if (!results.Contains(item))
+					results.Add(item);
+				return;
+			}
+
+			foreach (ModelItem child in item.Children)
+			{
+				CollectLeafItems(child, results);
+			}
 		}
 
 		private async void GetData()
@@ -166,27 +194,33 @@ namespace NavisLegacyPlugin.ViewModels
 					}
 				}
 
-				// ✅ WRITE PHASE (unchanged behaviour)
+				bool writeToLeafItems =	string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase);
 				int itemIndex = 0;
 				int itemTotal = itemWriteMap.Count;
 
 				foreach (var entry in itemWriteMap)
 				{
-					foreach (var tab in entry.Value)
+					var item = entry.Key;
+
+					if (writeToLeafItems)
 					{
-						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+						var leafItems = new List<ModelItem>();
+						CollectLeafItems(item, leafItems);
+
+						foreach (var leaf in leafItems)
+						{
+							foreach (var tab in entry.Value)
+							{
+								_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
+							}
+						}
 					}
-
-					itemIndex++;
-
-					if (itemIndex % 5 == 0 || itemIndex == itemTotal)
+					else
 					{
-						ProgressPercent = 70 + (int)(30.0 * itemIndex / Math.Max(itemTotal, 1));
-						ProgressText = $"Writing item {itemIndex} of {itemTotal}...";
-
-						await System.Windows.Application.Current.Dispatcher.InvokeAsync(
-							() => { },
-							System.Windows.Threading.DispatcherPriority.Background);
+						foreach (var tab in entry.Value)
+						{
+							_writer.WriteUserDefinedProperties(item, tab.Key, tab.Value);
+						}
 					}
 				}
 
