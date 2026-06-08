@@ -1,9 +1,10 @@
-﻿using Autodesk.Navisworks.Api;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using Autodesk.Navisworks.Api;
 
 namespace NavisLegacyPlugin.Services
 {
@@ -54,16 +55,17 @@ namespace NavisLegacyPlugin.Services
 			{
 				foreach (ModelItem item in model.RootItem.DescendantsAndSelf)
 				{
-					foreach (PropertyCategory cat in item.PropertyCategories)
+					// ✅ Directly access the category (no full scan)
+					var cat = item.PropertyCategories
+						.FindCategoryByDisplayName(tabName);
+
+					if (cat != null)
 					{
-						if (!string.Equals(cat.DisplayName, tabName, StringComparison.OrdinalIgnoreCase))
-							continue;
+						var prop = cat.Properties
+							.FirstOrDefault(p => string.Equals(p.DisplayName, propertyName, StringComparison.OrdinalIgnoreCase));
 
-						foreach (DataProperty prop in cat.Properties)
+						if (prop != null)
 						{
-							if (!string.Equals(prop.DisplayName, propertyName, StringComparison.OrdinalIgnoreCase))
-								continue;
-
 							var value = prop.Value?.ToDisplayString();
 
 							if (!string.IsNullOrWhiteSpace(value) && !lookup.ContainsKey(value))
@@ -75,7 +77,7 @@ namespace NavisLegacyPlugin.Services
 
 					counter++;
 
-					if (counter % 500 == 0)
+					if (counter % 200 == 0)
 					{
 						progress?.Report(new LookupProgressInfo
 						{
@@ -88,6 +90,11 @@ namespace NavisLegacyPlugin.Services
 							DispatcherPriority.Background);
 					}
 				}
+
+				// ✅ yield between models (good for federated files)
+				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => { },
+					System.Windows.Threading.DispatcherPriority.Background);
 			}
 
 			progress?.Report(new LookupProgressInfo
