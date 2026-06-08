@@ -97,6 +97,54 @@ namespace NavisLegacyPlugin.Services
 				properties);
 		}
 
+		public void WriteUserDefinedPropertiesToItems(
+			IEnumerable<ModelItem> items,
+			string tabName,
+			IDictionary<string, string> properties)
+		{
+			if (items == null)
+				throw new ArgumentNullException(nameof(items));
+
+			if (string.IsNullOrWhiteSpace(tabName))
+				throw new ArgumentException("tabName is required.");
+
+			if (properties == null || properties.Count == 0)
+				throw new ArgumentException("At least one property is required.");
+
+			InwOpState10 state = null;
+
+			try
+			{
+				state = (InwOpState10)ComApiBridge.State;
+
+				// Optional de-duplication by InstanceGuid to avoid writing the same item twice
+				var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+				foreach (var item in items)
+				{
+					if (item == null)
+						continue;
+
+					var guid = item.InstanceGuid.ToString("D");
+					if (seen.Contains(guid))
+						continue;
+
+					seen.Add(guid);
+
+					WriteOrUpdateUserDefinedPropertiesInternal(
+						state,
+						item,
+						tabName,
+						properties);
+				}
+			}
+			finally
+			{
+				// DO NOT release state
+			}
+		}
+
+
 		// ✅ FIXED: Leaf traversal
 		private void CollectLeafItems(ModelItem item, List<ModelItem> results)
 		{

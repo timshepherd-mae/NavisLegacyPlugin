@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Windows.Input;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
@@ -58,6 +59,27 @@ namespace NavisLegacyPlugin.ViewModels
 			get { return _isBusy; }
 			set { _isBusy = value; OnPropertyChanged(); }
 		}
+
+
+		private class PendingWriteBatch
+		{
+			public string TabName { get; set; }
+			public Dictionary<string, string> Properties { get; set; }
+			public List<ModelItem> Items { get; } = new List<ModelItem>();
+		}
+
+		private string BuildBatchKey(string tabName, IDictionary<string, string> properties)
+		{
+			var orderedParts = new List<string>();
+
+			foreach (var kvp in properties.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
+			{
+				orderedParts.Add($"{kvp.Key}={kvp.Value}");
+			}
+
+			return tabName + "||" + string.Join("|", orderedParts);
+		}
+
 
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
@@ -157,6 +179,8 @@ namespace NavisLegacyPlugin.ViewModels
 				int unmatchedCount = 0;
 				int total = table.Rows.Count;
 
+				var pendingBatches = new Dictionary<string, PendingWriteBatch>(StringComparer.OrdinalIgnoreCase);
+
 				foreach (DataRow row in table.Rows)
 				{
 					rowIndex++;
@@ -177,10 +201,18 @@ namespace NavisLegacyPlugin.ViewModels
 
 						foreach (var tab in instruction.PropertiesByTab)
 						{
-							_writer.WriteUserDefinedProperties(
-								targetItem,
-								tab.Key,
-								tab.Value);
+							string batchKey = BuildBatchKey(tab.Key, tab.Value);
+
+							if (!pendingBatches.ContainsKey(batchKey))
+							{
+								pendingBatches[batchKey] = new PendingWriteBatch
+								{
+									TabName = tab.Key,
+									Properties = new Dictionary<string, string>(tab.Value, StringComparer.OrdinalIgnoreCase)
+								};
+							}
+
+							pendingBatches[batchKey].Items.Add(targetItem);
 						}
 
 						matchedCount++;
@@ -188,14 +220,40 @@ namespace NavisLegacyPlugin.ViewModels
 
 					if (rowIndex % 25 == 0)
 					{
-						ProgressPercent = 35 + (int)(65.0 * rowIndex / total);
-						ProgressText = $"Processing row {rowIndex} of {total}...";
+						ProgressPercent = 35 + (int)(35.0 * rowIndex / total);
+						ProgressText = $"Preparing row {rowIndex} of {total}...";
 
 						await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 							() => { },
 							System.Windows.Threading.DispatcherPriority.Background);
 					}
 				}
+
+
+				int batchIndex = 0;
+				int batchTotal = pendingBatches.Count;
+
+				foreach (var batch in pendingBatches.Values)
+				{
+					batchIndex++;
+
+					_writer.WriteUserDefinedPropertiesToItems(
+						batch.Items,
+						batch.TabName,
+						batch.Properties);
+
+					if (batchIndex % 5 == 0 || batchIndex == batchTotal)
+					{
+						ProgressPercent = 70 + (int)(30.0 * batchIndex / Math.Max(batchTotal, 1));
+						ProgressText = $"Writing batch {batchIndex} of {batchTotal}...";
+
+						await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+							() => { },
+							System.Windows.Threading.DispatcherPriority.Background);
+					}
+				}
+
+
 
 				ProgressPercent = 100;
 				ProgressText = $"Complete. Matched: {matchedCount}, Unmatched: {unmatchedCount}";
