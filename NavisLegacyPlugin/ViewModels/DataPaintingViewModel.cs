@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
 using System.Windows.Input;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
@@ -22,10 +21,20 @@ namespace NavisLegacyPlugin.ViewModels
 		public string Status
 		{
 			get { return _status; }
-			private set
+			private set { _status = value; OnPropertyChanged(); }
+		}
+
+		private string _writeMode = "Branch";
+		public string WriteMode
+		{
+			get { return _writeMode; }
+			set
 			{
-				_status = value;
-				OnPropertyChanged();
+				if (_writeMode != value)
+				{
+					_writeMode = value;
+					OnPropertyChanged(nameof(WriteMode));
+				}
 			}
 		}
 
@@ -50,20 +59,6 @@ namespace NavisLegacyPlugin.ViewModels
 			set { _isBusy = value; OnPropertyChanged(); }
 		}
 
-		private string _writeMode = "Branch";
-		public string WriteMode
-		{
-			get { return _writeMode; }
-			set
-			{
-				if (_writeMode != value)
-				{
-					_writeMode = value;
-					OnPropertyChanged(nameof(WriteMode));
-				}
-			}
-		}
-
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
 			_writer = writer;
@@ -77,7 +72,6 @@ namespace NavisLegacyPlugin.ViewModels
 			try
 			{
 				Status = "Writing...";
-
 				System.Diagnostics.Debug.WriteLine($"WriteMode = {WriteMode}");
 
 				var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -90,7 +84,7 @@ namespace NavisLegacyPlugin.ViewModels
 				bool writeToLeafItems =
 					string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase);
 
-				_writer.WriteToCurrentSelection("MAE4D", props, writeToLeafItems);
+				_writer.WriteToCurrentSelection("Synchro", props, writeToLeafItems);
 
 				Status = "Write complete.";
 			}
@@ -122,10 +116,8 @@ namespace NavisLegacyPlugin.ViewModels
 					{ "3DUF:RID", "MAE-4D.RID" }
 				};
 
-
-				ProgressText = "Reading CSV...";
-
-				var progress = new Progress<int>(rowsRead =>
+				// ✅ CSV PROGRESS
+				var csvProgress = new Progress<int>(rowsRead =>
 				{
 					ProgressText = $"Reading CSV... {rowsRead} rows";
 				});
@@ -134,29 +126,28 @@ namespace NavisLegacyPlugin.ViewModels
 					filePath,
 					startRow,
 					"3DUF:RID",
-					progress);
-
+					csvProgress);
 
 				ProgressPercent = 15;
 				ProgressText = $"CSV loaded: {table.Rows.Count} rows";
+
 				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 					() => { },
 					System.Windows.Threading.DispatcherPriority.Background);
 
-				ProgressText = "Building Synchro lookup...";
-
-
-				var lookupProgress = new Progress<int>(count =>
+				// ✅ LOOKUP (NEW CLEAN VERSION)
+				var lookupProgress = new Progress<ModelLookupService.LookupProgressInfo>(info =>
 				{
-					ProgressText = $"Building lookup... scanned {count} items";
+					ProgressText = $"{info.Stage} {info.ItemsScanned}";
 				});
 
-				var synchroLookup = await _modelLookupService.BuildLookupWithProgressAsync(
+				var synchroLookup = await _modelLookupService.GetOrBuildLookupAsync(
 					"Synchro",
 					"SynchroID",
 					lookupProgress);
 
 				ProgressPercent = 35;
+
 				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 					() => { },
 					System.Windows.Threading.DispatcherPriority.Background);
@@ -199,6 +190,7 @@ namespace NavisLegacyPlugin.ViewModels
 					{
 						ProgressPercent = 35 + (int)(65.0 * rowIndex / total);
 						ProgressText = $"Processing row {rowIndex} of {total}...";
+
 						await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 							() => { },
 							System.Windows.Threading.DispatcherPriority.Background);
@@ -219,6 +211,5 @@ namespace NavisLegacyPlugin.ViewModels
 				IsBusy = false;
 			}
 		}
-
 	}
 }

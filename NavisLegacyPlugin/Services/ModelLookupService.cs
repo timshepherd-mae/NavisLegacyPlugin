@@ -1,75 +1,70 @@
-﻿using System;
+﻿using Autodesk.Navisworks.Api;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Autodesk.Navisworks.Api;
+using System.Windows;
+using System.Windows.Threading;
 
 namespace NavisLegacyPlugin.Services
 {
 	public class ModelLookupService
 	{
-		public Dictionary<string, ModelItem> BuildLookup(string tabDisplayName, string propertyDisplayName)
+		public class LookupProgressInfo
 		{
-			var lookup = new Dictionary<string, ModelItem>(StringComparer.OrdinalIgnoreCase);
-
-			var doc = Application.ActiveDocument;
-			if (doc == null)
-				return lookup;
-
-			foreach (Model model in doc.Models)
-			{
-				foreach (ModelItem item in model.RootItem.DescendantsAndSelf)
-				{
-					foreach (PropertyCategory cat in item.PropertyCategories)
-					{
-						if (!string.Equals(cat.DisplayName, tabDisplayName, StringComparison.OrdinalIgnoreCase))
-							continue;
-
-						foreach (DataProperty prop in cat.Properties)
-						{
-							if (!string.Equals(prop.DisplayName, propertyDisplayName, StringComparison.OrdinalIgnoreCase))
-								continue;
-
-							var value = prop.Value != null ? prop.Value.ToDisplayString() : null;
-
-							if (!string.IsNullOrWhiteSpace(value) && !lookup.ContainsKey(value))
-								lookup[value] = item;
-						}
-					}
-				}
-			}
-
-			return lookup;
+			public string Stage { get; set; }
+			public int ItemsScanned { get; set; }
 		}
 
-		public async Task<Dictionary<string, ModelItem>> BuildLookupWithProgressAsync(
-			string tabDisplayName,
-			string propertyDisplayName,
-			IProgress<int> progress = null)
+		private Dictionary<string, ModelItem> _cachedLookup;
+		private Document _cachedDocument;
 
+		public async Task<Dictionary<string, ModelItem>> GetOrBuildLookupAsync(
+			string tabName,
+			string propertyName,
+			IProgress<LookupProgressInfo> progress = null)
 		{
-			var lookup = new Dictionary<string, ModelItem>(StringComparer.OrdinalIgnoreCase);
-
-			var doc = Application.ActiveDocument;
+			var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
 			if (doc == null)
-				return lookup;
+				return new Dictionary<string, ModelItem>(StringComparer.OrdinalIgnoreCase);
+
+			// ✅ In-memory cache reuse
+			if (_cachedLookup != null && ReferenceEquals(_cachedDocument, doc))
+			{
+				progress?.Report(new LookupProgressInfo
+				{
+					Stage = "Using in-memory lookup cache...",
+					ItemsScanned = _cachedLookup.Count
+				});
+
+				return _cachedLookup;
+			}
+
+			// ✅ Build new lookup
+			var lookup = new Dictionary<string, ModelItem>(StringComparer.OrdinalIgnoreCase);
 
 			int counter = 0;
 
+			progress?.Report(new LookupProgressInfo
+			{
+				Stage = "Building Synchro lookup... scanned",
+				ItemsScanned = 0
+			});
+
 			foreach (Model model in doc.Models)
 			{
 				foreach (ModelItem item in model.RootItem.DescendantsAndSelf)
 				{
 					foreach (PropertyCategory cat in item.PropertyCategories)
 					{
-						if (!string.Equals(cat.DisplayName, tabDisplayName, StringComparison.OrdinalIgnoreCase))
+						if (!string.Equals(cat.DisplayName, tabName, StringComparison.OrdinalIgnoreCase))
 							continue;
 
 						foreach (DataProperty prop in cat.Properties)
 						{
-							if (!string.Equals(prop.DisplayName, propertyDisplayName, StringComparison.OrdinalIgnoreCase))
+							if (!string.Equals(prop.DisplayName, propertyName, StringComparison.OrdinalIgnoreCase))
 								continue;
 
-							var value = prop.Value != null ? prop.Value.ToDisplayString() : null;
+							var value = prop.Value?.ToDisplayString();
 
 							if (!string.IsNullOrWhiteSpace(value) && !lookup.ContainsKey(value))
 							{
@@ -80,23 +75,40 @@ namespace NavisLegacyPlugin.Services
 
 					counter++;
 
-					// ✅ report progress
 					if (counter % 500 == 0)
 					{
-						progress?.Report(counter);
+						progress?.Report(new LookupProgressInfo
+						{
+							Stage = "Building Synchro lookup... scanned",
+							ItemsScanned = counter
+						});
 
-						// ✅ THIS IS THE CRITICAL FIX
 						await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 							() => { },
-							System.Windows.Threading.DispatcherPriority.Background);
+							DispatcherPriority.Background);
 					}
 				}
 			}
 
-			progress?.Report(counter);
+			progress?.Report(new LookupProgressInfo
+			{
+				Stage = "Lookup build complete",
+				ItemsScanned = lookup.Count
+			});
+
+			_cachedLookup = lookup;
+			_cachedDocument = doc;
 
 			return lookup;
 		}
 
+		/// <summary>
+		/// Optional manual reset (future-proof if needed)
+		/// </summary>
+		public void ClearCache()
+		{
+			_cachedLookup = null;
+			_cachedDocument = null;
+		}
 	}
 }
