@@ -13,6 +13,8 @@ namespace NavisLegacyPlugin.ViewModels
 		private readonly ComPropertyWriteService _writer;
 		private readonly CsvDataService _csvService = new CsvDataService();
 		private readonly ModelLookupService _modelLookupService = new ModelLookupService();
+		private readonly DataPaintingService _paintingService;
+
 		public ICommand WriteTestCommand { get; }
 		public ICommand GetDataCommand { get; }
 
@@ -59,9 +61,14 @@ namespace NavisLegacyPlugin.ViewModels
 		{
 			_writer = writer;
 
+			_paintingService = new DataPaintingService(
+				_modelLookupService,
+				_writer);
+
 			WriteTestCommand = new RelayCommand(WriteTest);
 			GetDataCommand = new RelayCommand(GetData);
 		}
+
 
 		private void WriteTest()
 		{
@@ -120,15 +127,6 @@ namespace NavisLegacyPlugin.ViewModels
 
 				ProgressPercent = 15;
 
-				var lookupProgress = new Progress<ModelLookupService.LookupProgressInfo>(info =>
-				{
-					ProgressText = $"{info.Stage} {info.ItemsScanned}";
-				});
-
-				var lookup = await _modelLookupService.GetOrBuildLookupAsync(
-					"Synchro",
-					"SynchroID",
-					lookupProgress);
 
 				ProgressPercent = 35;
 
@@ -136,116 +134,19 @@ namespace NavisLegacyPlugin.ViewModels
 					() => { },
 					System.Windows.Threading.DispatcherPriority.Background);
 
-				int rowIndex = 0;
-				int matched = 0;
-				int unmatched = 0;
-				int total = table.Rows.Count;
 
-				// ✅ NEW: group by ModelItem
-				var itemWriteMap =
-					new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
+				var result = await _paintingService.ExecuteAsync(
+					table,
+					columnMap,
+					"Synchro",
+					"SynchroID",
+					"Synchro.SynchroID",
+					string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase),
+					text => ProgressText = text,
+					percent => ProgressPercent = percent
+				);
 
-				foreach (DataRow row in table.Rows)
-				{
-					rowIndex++;
-
-					var mapped = PropertyMappingHelper.MapRow(row, columnMap);
-					var instruction = PaintInstructionBuilder.Build(mapped, "Synchro.SynchroID");
-
-					if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
-						continue;
-
-					if (!lookup.TryGetValue(instruction.MatchValue, out var item))
-					{
-						unmatched++;
-						continue;
-					}
-
-					matched++;
-
-					foreach (var tab in instruction.PropertiesByTab)
-					{
-						if (!itemWriteMap.TryGetValue(item, out var tabDict))
-						{
-							tabDict = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-							itemWriteMap[item] = tabDict;
-						}
-
-						if (!tabDict.TryGetValue(tab.Key, out var propDict))
-						{
-							propDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-							tabDict[tab.Key] = propDict;
-						}
-
-						foreach (var kvp in tab.Value)
-						{
-							propDict[kvp.Key] = kvp.Value;
-						}
-					}
-
-					if (rowIndex % 25 == 0)
-					{
-						ProgressPercent = 35 + (int)(35.0 * rowIndex / total);
-						ProgressText = $"Preparing row {rowIndex} of {total}...";
-
-						await System.Windows.Application.Current.Dispatcher.InvokeAsync(
-							() => { },
-							System.Windows.Threading.DispatcherPriority.Background);
-					}
-				}
-
-				bool writeToLeafItems =	string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase);
-
-				int itemIndex = 0;
-				int itemTotal = itemWriteMap.Count;
-
-				foreach (var entry in itemWriteMap)
-				{
-					var item = entry.Key;
-					itemIndex++;
-
-					// ✅ PROGRESS BEFORE WRITE
-					if (itemIndex % 5 == 0 || itemIndex == itemTotal)
-					{
-						ProgressPercent = 70 + (int)(30.0 * itemIndex / Math.Max(itemTotal, 1));
-						ProgressText = $"Writing item {itemIndex} of {itemTotal}...";
-
-						await System.Windows.Application.Current.Dispatcher.InvokeAsync(
-							() => { },
-							System.Windows.Threading.DispatcherPriority.Background);
-					}
-
-					if (writeToLeafItems)
-					{
-						var leafItems = new List<ModelItem>();
-						CollectLeafItems(item, leafItems);
-
-						int leafIndex = 0;
-						int leafTotal = leafItems.Count;
-
-						foreach (var leaf in leafItems)
-						{
-
-							foreach (var tab in entry.Value)
-							{
-								_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
-							}
-
-							leafIndex++;
-						}
-					}
-					else
-					{
-						foreach (var tab in entry.Value)
-						{
-							_writer.WriteUserDefinedProperties(item, tab.Key, tab.Value);
-						}
-					}
-				}
-
-				ProgressPercent = 100;
-				ProgressText = $"Complete. Matched: {matched}, Unmatched: {unmatched}";
-				Status = ProgressText;
+				Status = $"Complete. Matched: {result.matched}, Unmatched: {result.unmatched}";
 			}
 			catch (Exception ex)
 			{
