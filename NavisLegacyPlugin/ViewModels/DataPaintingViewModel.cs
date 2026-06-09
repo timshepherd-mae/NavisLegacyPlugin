@@ -195,24 +195,43 @@ namespace NavisLegacyPlugin.ViewModels
 				}
 
 				bool writeToLeafItems =	string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase);
+
 				int itemIndex = 0;
 				int itemTotal = itemWriteMap.Count;
 
 				foreach (var entry in itemWriteMap)
 				{
 					var item = entry.Key;
+					itemIndex++;
+
+					// ✅ PROGRESS BEFORE WRITE
+					if (itemIndex % 5 == 0 || itemIndex == itemTotal)
+					{
+						ProgressPercent = 70 + (int)(30.0 * itemIndex / Math.Max(itemTotal, 1));
+						ProgressText = $"Writing item {itemIndex} of {itemTotal}...";
+
+						await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+							() => { },
+							System.Windows.Threading.DispatcherPriority.Background);
+					}
 
 					if (writeToLeafItems)
 					{
 						var leafItems = new List<ModelItem>();
 						CollectLeafItems(item, leafItems);
 
+						int leafIndex = 0;
+						int leafTotal = leafItems.Count;
+
 						foreach (var leaf in leafItems)
 						{
+
 							foreach (var tab in entry.Value)
 							{
 								_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
 							}
+
+							leafIndex++;
 						}
 					}
 					else
