@@ -108,12 +108,32 @@ namespace NavisLegacyPlugin.ViewModels
 					() => { },
 					System.Windows.Threading.DispatcherPriority.Background);
 
-				var columnMap = new Dictionary<string, string>
-			{
-				{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
-				{ "3DUF:RID", "MAE-4D.RID" }
-			};
+				var mapping = new MappingConfig
+				{
+					ColumnMap = new Dictionary<string, string>
+					{
+						{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
+						{ "3DUF:RID", "MAE-4D.RID" }
+					},
+					MatchColumn = "Synchro.SynchroID"
+				};
 
+				var lookupConfig = new LookupConfig
+				{
+					LookupTab = "Synchro",
+					LookupProperty = "SynchroID"
+				};
+
+				var writeConfig = new WriteConfig
+				{
+					WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+				};
+
+				var progressConfig = new ProgressConfig
+				{
+					ProgressText = new Progress<string>(t => ProgressText = t),
+					ProgressPercent = new Progress<int>(p => ProgressPercent = p)
+				};
 				var csvProgress = new Progress<int>(rows =>
 				{
 					ProgressText = $"Reading CSV... {rows}";
@@ -137,13 +157,10 @@ namespace NavisLegacyPlugin.ViewModels
 
 				var result = await _paintingService.ExecuteAsync(
 					table,
-					columnMap,
-					"Synchro",
-					"SynchroID",
-					"Synchro.SynchroID",
-					string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase),
-					text => ProgressText = text,
-					percent => ProgressPercent = percent
+					mapping,
+					lookupConfig,
+					writeConfig,
+					progressConfig
 				);
 
 				Status = $"Complete. Matched: {result.matched}, Unmatched: {result.unmatched}";

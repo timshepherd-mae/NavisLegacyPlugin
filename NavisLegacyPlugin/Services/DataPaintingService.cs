@@ -23,26 +23,23 @@ namespace NavisLegacyPlugin.Services
 
 		public async Task<(int matched, int unmatched)> ExecuteAsync(
 			DataTable table,
-			Dictionary<string, string> columnMap,
-			string lookupTab,
-			string lookupProperty,
-			string matchColumn,
-			bool writeToLeafItems,
-			Action<string> reportText,
-			Action<int> reportPercent)
+			MappingConfig mapping,
+			LookupConfig lookup,
+			WriteConfig writeConfig,
+			ProgressConfig progress)
 		{
 			int matched = 0;
 			int unmatched = 0;
 
-			var lookup = await _lookupService.GetOrBuildLookupAsync(
-				lookupTab,
-				lookupProperty,
+			var lookupDict = await _lookupService.GetOrBuildLookupAsync(
+				lookup.LookupTab,
+				lookup.LookupProperty,
 				new Progress<ModelLookupService.LookupProgressInfo>(info =>
 				{
-					reportText?.Invoke($"{info.Stage} {info.ItemsScanned}");
+					progress.ProgressText?.Report($"{info.Stage} {info.ItemsScanned}");
 				}));
 
-			reportPercent?.Invoke(35);
+			progress.ProgressPercent?.Report(35);
 
 			int rowIndex = 0;
 			int total = table.Rows.Count;
@@ -54,13 +51,13 @@ namespace NavisLegacyPlugin.Services
 			{
 				rowIndex++;
 
-				var mapped = PropertyMappingHelper.MapRow(row, columnMap);
-				var instruction = PaintInstructionBuilder.Build(mapped, matchColumn);
+				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
+				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
 
 				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
 					continue;
 
-				if (!lookup.TryGetValue(instruction.MatchValue, out var item))
+				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
 				{
 					unmatched++;
 					continue;
@@ -90,8 +87,8 @@ namespace NavisLegacyPlugin.Services
 
 				if (rowIndex % 25 == 0)
 				{
-					reportPercent?.Invoke(35 + (int)(35.0 * rowIndex / total));
-					reportText?.Invoke($"Preparing row {rowIndex} of {total}...");
+					progress.ProgressPercent?.Report(35 + (int)(35.0 * rowIndex / total));
+					progress.ProgressText?.Report($"Preparing row {rowIndex} of {total}...");
 
 					await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 						() => { },
@@ -110,15 +107,15 @@ namespace NavisLegacyPlugin.Services
 				// ✅ PROGRESS BEFORE WRITE
 				if (itemIndex % 5 == 0 || itemIndex == itemTotal)
 				{
-					reportPercent?.Invoke(70 + (int)(30.0 * itemIndex / Math.Max(itemTotal, 1)));
-					reportText?.Invoke($"Writing item {itemIndex} of {itemTotal}...");
+					progress.ProgressText?.Report($"Writing item {itemIndex} of {itemTotal}...");
+					progress.ProgressPercent?.Report(70 + (int)(30.0 * itemIndex / Math.Max(itemTotal, 1)));
 
 					await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 						() => { },
 						System.Windows.Threading.DispatcherPriority.Background);
 				}
 
-				if (writeToLeafItems)
+				if (writeConfig.WriteToLeafItems)
 				{
 					var leafItems = new List<ModelItem>();
 					CollectLeafItems(item, leafItems);
@@ -167,4 +164,28 @@ namespace NavisLegacyPlugin.Services
 			}
 		}
 	}
+
+	public class MappingConfig
+	{
+		public Dictionary<string, string> ColumnMap { get; set; }
+		public string MatchColumn { get; set; }
+	}
+
+	public class LookupConfig
+	{
+		public string LookupTab { get; set; }
+		public string LookupProperty { get; set; }
+	}
+
+	public class WriteConfig
+	{
+		public bool WriteToLeafItems { get; set; }
+	}
+
+	public class ProgressConfig
+	{
+		public IProgress<string> ProgressText { get; set; }
+		public IProgress<int> ProgressPercent { get; set; }
+	}
+
 }
