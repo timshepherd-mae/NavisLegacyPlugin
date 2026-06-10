@@ -22,7 +22,7 @@ namespace NavisLegacyPlugin.Services
 		}
 
 		public async Task<(int matched, int unmatched)> ExecuteAsync(
-			DataTable table,
+			IDataSource dataSource,
 			MappingConfig mapping,
 			LookupConfig lookup,
 			WriteConfig writeConfig,
@@ -40,6 +40,10 @@ namespace NavisLegacyPlugin.Services
 				}));
 
 			progress.ProgressPercent?.Report(35);
+
+			progress.ProgressText?.Report("Reading data...");
+
+			var table = await dataSource.GetDataAsync(progress.ProgressText);
 
 			int rowIndex = 0;
 			int total = table.Rows.Count;

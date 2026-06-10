@@ -134,19 +134,13 @@ namespace NavisLegacyPlugin.ViewModels
 					ProgressText = new Progress<string>(t => ProgressText = t),
 					ProgressPercent = new Progress<int>(p => ProgressPercent = p)
 				};
-				var csvProgress = new Progress<int>(rows =>
-				{
-					ProgressText = $"Reading CSV... {rows}";
-				});
 
-				var table = _csvService.ReadCsvWithProgress(
+				var dataSource = new CsvDataSource(
+					_csvService,
 					@"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\data.csv",
 					2,
-					"3DUF:RID",
-					csvProgress);
-
-				ProgressPercent = 15;
-
+					"3DUF:RID"
+				);
 
 				ProgressPercent = 35;
 
@@ -156,7 +150,7 @@ namespace NavisLegacyPlugin.ViewModels
 
 
 				var result = await _paintingService.ExecuteAsync(
-					table,
+					dataSource,
 					mapping,
 					lookupConfig,
 					writeConfig,
