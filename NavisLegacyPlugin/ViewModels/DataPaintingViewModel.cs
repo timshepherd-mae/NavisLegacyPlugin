@@ -14,9 +14,19 @@ namespace NavisLegacyPlugin.ViewModels
 		private readonly CsvDataService _csvService = new CsvDataService();
 		private readonly ModelLookupService _modelLookupService = new ModelLookupService();
 		private readonly DataPaintingService _paintingService;
+		private bool _canTransferRid;
+		public bool CanTransferRid
+		{
+			get => _canTransferRid;
+			private set
+			{
+				_canTransferRid = value;
+				OnPropertyChanged(nameof(CanTransferRid));
+			}
+		}
 
 		public ICommand WriteTestCommand { get; }
-		public ICommand GetDataCommand { get; }
+		public ICommand GetSynchroDataCommand { get; }
 
 		private string _status = "Ready.";
 		public string Status
@@ -66,7 +76,8 @@ namespace NavisLegacyPlugin.ViewModels
 				_writer);
 
 			WriteTestCommand = new RelayCommand(WriteTest);
-			GetDataCommand = new RelayCommand(GetData);
+			GetSynchroDataCommand = new RelayCommand(GetSynchroData);
+			GeometrySelectionService.SelectionChanged += OnSelectionChanged; UpdateTransferState();
 		}
 
 
@@ -97,7 +108,7 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
-		private async void GetData()
+		private async void GetSynchroData()
 		{
 			try
 			{
@@ -168,6 +179,23 @@ namespace NavisLegacyPlugin.ViewModels
 				IsBusy = false;
 			}
 		}
+
+		private void OnSelectionChanged()
+		{
+			UpdateTransferState();
+		}
+
+		private void UpdateTransferState()
+		{
+			var hasA = GeometrySelectionService.SelectionA != null
+					   && GeometrySelectionService.SelectionA.Count > 0;
+
+			var hasB = GeometrySelectionService.SelectionB != null
+					   && GeometrySelectionService.SelectionB.Count > 0;
+
+			CanTransferRid = hasA && hasB;
+		}
+
 	}
 
 }

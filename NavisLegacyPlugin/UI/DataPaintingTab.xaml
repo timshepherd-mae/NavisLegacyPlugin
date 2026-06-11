@@ -57,7 +57,7 @@
             Content="Get Synchro Data"
             Width="160"
             Margin="0,10,0,0"
-            Command="{Binding GetDataCommand}"
+            Command="{Binding GetSynchroDataCommand}"
 						IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
 
 		<!-- Progress bar -->

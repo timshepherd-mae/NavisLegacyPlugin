@@ -8,6 +8,7 @@
 	<UserControl.Resources>
 		<conv:DoubleFormatConverter x:Key="DoubleFormatConverter" />
 		<conv:EqualsConverter x:Key="EqualsConverter" />
+		<conv:InverseBooleanConverter x:Key="InverseBooleanConverter" />
 	</UserControl.Resources>
 
 
@@ -17,11 +18,12 @@
 			<RowDefinition Height="Auto"/>			<!-- Mode -->
 			<RowDefinition Height="Auto"/>			<!-- Write -->
 			<RowDefinition Height="Auto"/>			<!-- GetData -->
+			<RowDefinition Height="Auto"/>			<!-- Progress bar -->
+			<RowDefinition Height="Auto"/>			<!-- Progress text -->
 			<RowDefinition Height="Auto"/>			<!-- Status -->
-			<RowDefinition Height="Auto"/>			<!-- Binding -->
 		</Grid.RowDefinitions>
 
-		<!-- ✅ Write Mode -->
+		<!-- Write Mode -->
 		<StackPanel Grid.Row="0"
                 Orientation="Horizontal"
                 Margin="0,0,0,10">
@@ -43,25 +45,39 @@
 			
 		</StackPanel>
 
-		<!-- ✅ Existing button -->
+		<!-- Existing button -->
 		<Button Grid.Row="1"
             Content="Write Test Property"
             Width="160"
-            Command="{Binding WriteTestCommand}" />
+            Command="{Binding WriteTestCommand}"
+			IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
 
-		<!-- ✅ NEW Get Data button -->
+		<!-- Get Data button -->
 		<Button Grid.Row="2"
-            Content="Get Data"
+            Content="Get Synchro Data"
             Width="160"
             Margin="0,10,0,0"
-            Command="{Binding GetDataCommand}" />
+            Command="{Binding GetDataCommand}"
+						IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
 
-		<!-- ✅ Status -->
-		<TextBlock Grid.Row="3"
+		<!-- Progress bar -->
+		<ProgressBar Grid.Row="3"
+				 Height="18"
+				 Margin="0,10,0,0"
+				 Minimum="0"
+				 Maximum="100"
+				 Value="{Binding ProgressPercent}" />
+
+		<!-- Progress text -->
+		<TextBlock Grid.Row="4"
+			   Margin="0,6,0,0"
+			   Text="{Binding ProgressText}" />
+
+		<!-- Status -->
+		<TextBlock Grid.Row="5"
                Margin="0,10,0,0"
                Text="{Binding Status}" />
 
-		<TextBlock  Grid.Row="4" Text="{Binding WriteMode}" />
 
 	</Grid>
 	
