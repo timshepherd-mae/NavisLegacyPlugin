@@ -213,10 +213,68 @@ namespace NavisLegacyPlugin.ViewModels
 
 		private void TransferRid()
 		{
-			System.Diagnostics.Debug.WriteLine("Transfer RID triggered");
+			var table = BuildSelectionADataTable();
+
+			System.Diagnostics.Debug.WriteLine($"Rows in DataTable: {table.Rows.Count}");
+
+			foreach (DataRow row in table.Rows)
+			{
+				System.Diagnostics.Debug.WriteLine(
+					$"GUID: {row["InstanceGuid"]}, RID: {row["MAE-4D.RID"]}"
+				);
+			}
 		}
 
 
-	}
+		private DataTable BuildSelectionADataTable()
+		{
+			var table = new DataTable();
 
+			table.Columns.Add("InstanceGuid", typeof(string));
+			table.Columns.Add("MAE-4D.RID", typeof(string));
+
+			var selectionA = GeometrySelectionService.SelectionA;
+
+			foreach (ModelItem item in selectionA)
+			{
+				var guid = item.InstanceGuid.ToString("D");
+				var rid = GetRidFromItem(item);
+
+				var row = table.NewRow();
+				row["InstanceGuid"] = guid;
+				row["MAE-4D.RID"] = rid ?? string.Empty;
+
+				table.Rows.Add(row);
+			}
+
+			return table;
+		}
+
+		private string GetRidFromItem(ModelItem item)
+		{
+			try
+			{
+				// Try display name first
+				var prop = item.PropertyCategories
+					.FindCategoryByDisplayName("MAE-4D")?
+					.Properties
+					.FindPropertyByDisplayName("RID");
+
+				if (prop != null)
+					return prop.Value?.ToDisplayString();
+
+				// Fallback to internal names
+				prop = item.PropertyCategories
+					.FindCategoryByName("MAE-4D")?
+					.Properties
+					.FindPropertyByName("RID");
+
+				return prop?.Value?.ToDisplayString();
+			}
+			catch
+			{
+				return null;
+			}
+		}
+	}
 }
