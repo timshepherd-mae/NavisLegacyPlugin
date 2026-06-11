@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Windows.Input;
 using Autodesk.Navisworks.Api;
@@ -193,7 +194,19 @@ namespace NavisLegacyPlugin.ViewModels
 			var hasB = GeometrySelectionService.SelectionB != null
 					   && GeometrySelectionService.SelectionB.Count > 0;
 
-			CanTransferRid = hasA && hasB;
+			var newValue = hasA && hasB;
+
+			if (_canTransferRid != newValue)
+			{
+				_canTransferRid = newValue;
+				OnPropertyChanged(nameof(CanTransferRid));
+			}
+
+			System.Diagnostics.Debug.WriteLine(
+				$"A: {hasA}, B: {hasB}, CanTransferRid: {_canTransferRid}"
+			);
+
+			CommandManager.InvalidateRequerySuggested();
 		}
 
 	}

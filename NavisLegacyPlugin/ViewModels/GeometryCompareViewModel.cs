@@ -18,8 +18,9 @@ namespace NavisLegacyPlugin.ViewModels
 			_contextService = contextService;
 
 			var geometryService = new GeometryPositionService();
-			GeometryA = new GetGeometryPositionsViewModel(geometryService);
-			GeometryB = new GetGeometryPositionsViewModel(geometryService);
+
+			GeometryA = new GetGeometryPositionsViewModel(geometryService, true);
+			GeometryB = new GetGeometryPositionsViewModel(geometryService, false);
 
 			ActionOneCommand = new RelayCommand(OnActionOne);
 			ActionTwoCommand = new RelayCommand(OnActionTwo);

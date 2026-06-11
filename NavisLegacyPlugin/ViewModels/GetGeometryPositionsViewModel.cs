@@ -12,11 +12,14 @@ namespace NavisLegacyPlugin.ViewModels
 {
 	public class GetGeometryPositionsViewModel : ViewModelBase, IDisposable
 	{
-		public GetGeometryPositionsViewModel(GeometryPositionService service)
+		private readonly bool _isSelectionA;
+
+		public GetGeometryPositionsViewModel(GeometryPositionService service, bool isSelectionA)
 		{
 			_service = service;
-			RunCommand = new RelayCommand(Run);
+			_isSelectionA = isSelectionA;
 
+			RunCommand = new RelayCommand(Run);
 			SubscribeToSelection();
 		}
 
@@ -119,6 +122,24 @@ namespace NavisLegacyPlugin.ViewModels
 
 			foreach (var row in rows)
 				Results.Add(row);
+
+			var modelItems = new ModelItemCollection();
+
+			foreach (var row in rows)
+			{
+				if (row?.ModelItem != null)
+					modelItems.Add(row.ModelItem);
+			}
+
+			if (_isSelectionA)
+			{
+				GeometrySelectionService.SelectionA = modelItems;
+			}
+			else
+			{
+				GeometrySelectionService.SelectionB = modelItems;
+			}
+
 		}
 	}
 }
