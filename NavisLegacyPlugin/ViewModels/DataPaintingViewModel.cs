@@ -28,6 +28,7 @@ namespace NavisLegacyPlugin.ViewModels
 
 		public ICommand WriteTestCommand { get; }
 		public ICommand GetSynchroDataCommand { get; }
+		public ICommand TransferRidCommand { get; }
 
 		private string _status = "Ready.";
 		public string Status
@@ -79,6 +80,7 @@ namespace NavisLegacyPlugin.ViewModels
 			WriteTestCommand = new RelayCommand(WriteTest);
 			GetSynchroDataCommand = new RelayCommand(GetSynchroData);
 			GeometrySelectionService.SelectionChanged += OnSelectionChanged; UpdateTransferState();
+			TransferRidCommand = new RelayCommand(TransferRid, () => CanTransferRid);
 		}
 
 
@@ -208,6 +210,12 @@ namespace NavisLegacyPlugin.ViewModels
 
 			CommandManager.InvalidateRequerySuggested();
 		}
+
+		private void TransferRid()
+		{
+			System.Diagnostics.Debug.WriteLine("Transfer RID triggered");
+		}
+
 
 	}
 
