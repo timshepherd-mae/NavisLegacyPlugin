@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
@@ -28,6 +29,8 @@ namespace NavisLegacyPlugin.Services
 			WriteConfig writeConfig,
 			ProgressConfig progress)
 		{
+			System.Diagnostics.Debug.WriteLine(">>> USING SYNCHRO LOOKUP PATH <<<");
+
 			int matched = 0;
 			int unmatched = 0;
 
@@ -150,6 +153,99 @@ namespace NavisLegacyPlugin.Services
 
 			return (matched, unmatched);
 		}
+
+		public async Task<(int matched, int unmatched)> ExecuteAsync(
+			IDataSource dataSource,
+			MappingConfig mapping,
+			Dictionary<string, ModelItem> lookupDict,
+			WriteConfig writeConfig,
+			ProgressConfig progress)
+		{
+			System.Diagnostics.Debug.WriteLine(">>> USING GUID LOOKUP PATH <<<");
+
+			int matched = 0;
+			int unmatched = 0;
+
+			progress.ProgressText?.Report("Reading data...");
+
+			var table = await dataSource.GetDataAsync(progress.ProgressText);
+
+			int rowIndex = 0;
+			int total = table.Rows.Count;
+
+			Debug.WriteLine($"TABLE ROWS INSIDE SERVICE: {total}");
+
+			var itemWriteMap =
+				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
+
+			foreach (DataRow row in table.Rows)
+			{
+				rowIndex++;
+
+				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
+				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
+
+				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
+					continue;
+
+				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
+				{
+					unmatched++;
+					continue;
+				}
+
+				matched++;
+
+				foreach (var tab in instruction.PropertiesByTab)
+				{
+					if (!itemWriteMap.TryGetValue(item, out var tabDict))
+					{
+						tabDict = new Dictionary<string, Dictionary<string, string>>();
+						itemWriteMap[item] = tabDict;
+					}
+
+					if (!tabDict.TryGetValue(tab.Key, out var propDict))
+					{
+						propDict = new Dictionary<string, string>();
+						tabDict[tab.Key] = propDict;
+					}
+
+					foreach (var prop in tab.Value)
+					{
+						propDict[prop.Key] = prop.Value;
+					}
+				}
+
+				if (rowIndex % 50 == 0)
+				{
+					int percent = (int)((double)rowIndex / total * 100);
+					progress.ProgressPercent?.Report(percent);
+				}
+			}
+
+			progress.ProgressText?.Report("Writing properties...");
+
+			foreach (var kvp in itemWriteMap)
+			{
+				var item = kvp.Key;
+				var tabDict = kvp.Value;
+
+				foreach (var tab in tabDict)
+				{
+					_writer.WriteToModelItem(
+						item,
+						tab.Key,
+						tab.Value,
+						writeConfig.WriteToLeafItems);
+				}
+			}
+
+			progress.ProgressPercent?.Report(100);
+
+			return (matched, unmatched);
+		}
+
+
 
 		private void CollectLeafItems(ModelItem item, List<ModelItem> results)
 		{

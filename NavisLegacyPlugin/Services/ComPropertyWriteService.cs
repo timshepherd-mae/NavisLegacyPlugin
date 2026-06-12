@@ -13,6 +13,7 @@ namespace NavisLegacyPlugin.Services
 	{
 		private const string UserDefinedInternalCategoryName = "LcOaPropOverrideCat";
 
+
 		public void WriteToCurrentSelection(
 			string tabName,
 			IDictionary<string, string> properties,
@@ -144,6 +145,45 @@ namespace NavisLegacyPlugin.Services
 			}
 		}
 
+
+		public void WriteToModelItem(
+			ModelItem item,
+			string tabName,
+			Dictionary<string, string> properties,
+			bool writeToLeafItems)
+		{
+			var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
+
+			// ✅ Correct clone
+			var originalSelection = new ModelItemCollection();
+			originalSelection.CopyFrom(doc.CurrentSelection.SelectedItems);
+
+			try
+			{
+				var items = new ModelItemCollection();
+
+				if (writeToLeafItems)
+				{
+					foreach (var child in item.DescendantsAndSelf)
+						items.Add(child);
+				}
+				else
+				{
+					items.Add(item);
+				}
+
+				// ✅ Apply temp selection
+				doc.CurrentSelection.CopyFrom(items);
+
+				// ✅ Use your existing writer
+				WriteToCurrentSelection(tabName, properties, writeToLeafItems);
+			}
+			finally
+			{
+				// ✅ Restore selection
+				doc.CurrentSelection.CopyFrom(originalSelection);
+			}
+		}
 
 		// ✅ FIXED: Leaf traversal
 		private void CollectLeafItems(ModelItem item, List<ModelItem> results)

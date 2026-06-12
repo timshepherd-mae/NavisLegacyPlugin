@@ -211,20 +211,83 @@ namespace NavisLegacyPlugin.ViewModels
 			CommandManager.InvalidateRequerySuggested();
 		}
 
-		private void TransferRid()
+		private async void TransferRid()
 		{
-			var table = BuildSelectionADataTable();
-
-			System.Diagnostics.Debug.WriteLine($"Rows in DataTable: {table.Rows.Count}");
-
-			foreach (DataRow row in table.Rows)
+			try
 			{
-				System.Diagnostics.Debug.WriteLine(
-					$"GUID: {row["InstanceGuid"]}, RID: {row["MAE-4D.RID"]}"
+				IsBusy = true;
+
+				Status = "Building Selection A data...";
+				var table = BuildSelectionADataTable();
+
+				Debug.WriteLine($"Rows in DataTable: {table.Rows.Count}");
+
+				Status = "Building Selection B lookup...";
+
+
+				Debug.WriteLine($"SelectionB count BEFORE lookup: {GeometrySelectionService.SelectionB?.Count}");
+
+				var lookup = GeometrySelectionService.SelectionB
+					.Cast<ModelItem>()
+					.ToDictionary(
+						item => item.InstanceGuid.ToString("D"),
+						item => item,
+						StringComparer.OrdinalIgnoreCase
+					);
+
+				Debug.WriteLine($"SelectionB count AFTER lookup: {GeometrySelectionService.SelectionB?.Count}");
+				Debug.WriteLine($"Lookup size: {lookup.Count}");
+
+				var dataSource = new InMemoryDataSource(table);
+
+				var mapping = new MappingConfig
+				{
+
+					ColumnMap = new Dictionary<string, string>
+					{
+						{ "InstanceGuid", "InstanceGuid" },   // ✅ REQUIRED
+						{ "MAE-4D.RID", "MAE-4D.RID" }
+					},
+
+					MatchColumn = "InstanceGuid"
+				};
+
+				var writeConfig = new WriteConfig
+				{
+					WriteToLeafItems = WriteMode == "Leaf"
+				};
+
+				var progressConfig = new ProgressConfig
+				{
+					ProgressPercent = new Progress<int>(p => ProgressPercent = p),
+					ProgressText = new Progress<string>(s => ProgressText = s)
+				};
+
+				Status = "Executing transfer...";
+
+				var result = await _paintingService.ExecuteAsync(
+					dataSource,
+					mapping,
+					lookup,   // ✅ THIS activates GUID path
+					writeConfig,
+					progressConfig
 				);
+
+				Status = $"Complete. Matched: {result.matched}, Unmatched: {result.unmatched}";
+
+				Debug.WriteLine($"MATCHED: {result.matched}");
+				Debug.WriteLine($"UNMATCHED: {result.unmatched}");
+			}
+			catch (Exception ex)
+			{
+				Debug.WriteLine("ERROR: " + ex.ToString());
+				Status = $"Error: {ex.Message}";
+			}
+			finally
+			{
+				IsBusy = false;
 			}
 		}
-
 
 		private DataTable BuildSelectionADataTable()
 		{
@@ -248,6 +311,18 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 
 			return table;
+		}
+
+		private Dictionary<string, ModelItem> BuildSelectionBLookup()
+		{
+			var selectionB = GeometrySelectionService.SelectionB;
+
+			return selectionB
+				.Cast<ModelItem>()
+				.ToDictionary(
+					item => item.InstanceGuid.ToString("D"),
+					item => item
+				);
 		}
 
 		private string GetRidFromItem(ModelItem item)
