@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
+using NavisLegacyPlugin.Models;
 
 namespace NavisLegacyPlugin.Services
 {
@@ -43,21 +43,15 @@ namespace NavisLegacyPlugin.Services
 				}));
 
 			progress.ProgressPercent?.Report(35);
-
 			progress.ProgressText?.Report("Reading data...");
 
 			var table = await dataSource.GetDataAsync(progress.ProgressText);
-
-			int rowIndex = 0;
-			int total = table.Rows.Count;
 
 			var itemWriteMap =
 				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
 			foreach (DataRow row in table.Rows)
 			{
-				rowIndex++;
-
 				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
 				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
 
@@ -87,69 +81,27 @@ namespace NavisLegacyPlugin.Services
 					}
 
 					foreach (var kvp in tab.Value)
-					{
 						propDict[kvp.Key] = kvp.Value;
-					}
-				}
-
-				if (rowIndex % 25 == 0)
-				{
-					progress.ProgressPercent?.Report(35 + (int)(35.0 * rowIndex / total));
-					progress.ProgressText?.Report($"Preparing row {rowIndex} of {total}...");
-
-					await System.Windows.Application.Current.Dispatcher.InvokeAsync(
-						() => { },
-						System.Windows.Threading.DispatcherPriority.Background);
 				}
 			}
 
-			int itemIndex = 0;
-			int itemTotal = itemWriteMap.Count;
-
 			foreach (var entry in itemWriteMap)
 			{
-				var item = entry.Key;
-				itemIndex++;
-
-				// ✅ PROGRESS BEFORE WRITE
-				if (itemIndex % 5 == 0 || itemIndex == itemTotal)
-				{
-					progress.ProgressText?.Report($"Writing item {itemIndex} of {itemTotal}...");
-					progress.ProgressPercent?.Report(70 + (int)(30.0 * itemIndex / Math.Max(itemTotal, 1)));
-
-					await System.Windows.Application.Current.Dispatcher.InvokeAsync(
-						() => { },
-						System.Windows.Threading.DispatcherPriority.Background);
-				}
-
 				if (writeConfig.WriteToLeafItems)
 				{
 					var leafItems = new List<ModelItem>();
-					CollectLeafItems(item, leafItems);
-
-					int leafIndex = 0;
-					int leafTotal = leafItems.Count;
+					CollectLeafItems(entry.Key, leafItems);
 
 					foreach (var leaf in leafItems)
-					{
-
 						foreach (var tab in entry.Value)
-						{
 							_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
-						}
-
-						leafIndex++;
-					}
 				}
 				else
 				{
 					foreach (var tab in entry.Value)
-					{
-						_writer.WriteUserDefinedProperties(item, tab.Key, tab.Value);
-					}
+						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
 				}
 			}
-
 
 			return (matched, unmatched);
 		}
@@ -157,7 +109,7 @@ namespace NavisLegacyPlugin.Services
 		public async Task<(int matched, int unmatched)> ExecuteAsync(
 			IDataSource dataSource,
 			MappingConfig mapping,
-			Dictionary<string, ModelItem> lookupDict,
+			Dictionary<string, ModelItem> lookup,
 			WriteConfig writeConfig,
 			ProgressConfig progress)
 		{
@@ -166,29 +118,20 @@ namespace NavisLegacyPlugin.Services
 			int matched = 0;
 			int unmatched = 0;
 
-			progress.ProgressText?.Report("Reading data...");
-
 			var table = await dataSource.GetDataAsync(progress.ProgressText);
-
-			int rowIndex = 0;
-			int total = table.Rows.Count;
-
-			Debug.WriteLine($"TABLE ROWS INSIDE SERVICE: {total}");
 
 			var itemWriteMap =
 				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
 			foreach (DataRow row in table.Rows)
 			{
-				rowIndex++;
-
 				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
 				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
 
 				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
 					continue;
 
-				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
+				if (!lookup.TryGetValue(instruction.MatchValue, out var item))
 				{
 					unmatched++;
 					continue;
@@ -200,52 +143,41 @@ namespace NavisLegacyPlugin.Services
 				{
 					if (!itemWriteMap.TryGetValue(item, out var tabDict))
 					{
-						tabDict = new Dictionary<string, Dictionary<string, string>>();
+						tabDict = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
 						itemWriteMap[item] = tabDict;
 					}
 
 					if (!tabDict.TryGetValue(tab.Key, out var propDict))
 					{
-						propDict = new Dictionary<string, string>();
+						propDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 						tabDict[tab.Key] = propDict;
 					}
 
-					foreach (var prop in tab.Value)
-					{
-						propDict[prop.Key] = prop.Value;
-					}
-				}
-
-				if (rowIndex % 50 == 0)
-				{
-					int percent = (int)((double)rowIndex / total * 100);
-					progress.ProgressPercent?.Report(percent);
+					foreach (var kvp in tab.Value)
+						propDict[kvp.Key] = kvp.Value;
 				}
 			}
 
-			progress.ProgressText?.Report("Writing properties...");
-
-			foreach (var kvp in itemWriteMap)
+			foreach (var entry in itemWriteMap)
 			{
-				var item = kvp.Key;
-				var tabDict = kvp.Value;
-
-				foreach (var tab in tabDict)
+				if (writeConfig.WriteToLeafItems)
 				{
-					_writer.WriteToModelItem(
-						item,
-						tab.Key,
-						tab.Value,
-						writeConfig.WriteToLeafItems);
+					var leafItems = new List<ModelItem>();
+					CollectLeafItems(entry.Key, leafItems);
+
+					foreach (var leaf in leafItems)
+						foreach (var tab in entry.Value)
+							_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
+				}
+				else
+				{
+					foreach (var tab in entry.Value)
+						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
 				}
 			}
-
-			progress.ProgressPercent?.Report(100);
 
 			return (matched, unmatched);
 		}
-
-
 
 		private void CollectLeafItems(ModelItem item, List<ModelItem> results)
 		{
@@ -259,33 +191,7 @@ namespace NavisLegacyPlugin.Services
 			}
 
 			foreach (ModelItem child in item.Children)
-			{
 				CollectLeafItems(child, results);
-			}
 		}
 	}
-
-	public class MappingConfig
-	{
-		public Dictionary<string, string> ColumnMap { get; set; }
-		public string MatchColumn { get; set; }
-	}
-
-	public class LookupConfig
-	{
-		public string LookupTab { get; set; }
-		public string LookupProperty { get; set; }
-	}
-
-	public class WriteConfig
-	{
-		public bool WriteToLeafItems { get; set; }
-	}
-
-	public class ProgressConfig
-	{
-		public IProgress<string> ProgressText { get; set; }
-		public IProgress<int> ProgressPercent { get; set; }
-	}
-
 }
