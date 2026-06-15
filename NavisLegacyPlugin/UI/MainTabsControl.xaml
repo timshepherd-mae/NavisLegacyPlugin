@@ -15,5 +15,12 @@
 		<TabItem Header="Data Painting">
 			<ui:DataPaintingTab />
 		</TabItem>
+
+
+		<TabItem Header="GUID Test">
+			<ui:GuidTestTab/>
+		</TabItem>
+
+
 	</TabControl>
 </UserControl>

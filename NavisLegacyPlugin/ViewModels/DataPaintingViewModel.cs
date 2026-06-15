@@ -165,8 +165,76 @@ namespace NavisLegacyPlugin.ViewModels
 		// ✅ Existing CSV / Synchro path — unchanged
 		private async void GetSynchroData()
 		{
-			// existing implementation preserved
+			try
+			{
+				IsBusy = true;
+				ProgressText = "Reading CSV...";
+
+				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => { },
+					System.Windows.Threading.DispatcherPriority.Background);
+
+				var mapping = new MappingConfig
+				{
+					ColumnMap = new Dictionary<string, string>
+					{
+						{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
+						{ "3DUF:RID", "MAE-4D.RID" }
+					},
+					MatchColumn = "Synchro.SynchroID"
+				};
+
+				var lookupConfig = new LookupConfig
+				{
+					LookupTab = "Synchro",
+					LookupProperty = "SynchroID"
+				};
+
+				var writeConfig = new WriteConfig
+				{
+					WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+				};
+
+				var progressConfig = new ProgressConfig
+				{
+					ProgressText = new Progress<string>(t => ProgressText = t),
+					ProgressPercent = new Progress<int>(p => ProgressPercent = p)
+				};
+
+				var dataSource = new CsvDataSource(
+					_csvService,
+					@"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\data.csv",
+					2,
+					"3DUF:RID"
+				);
+
+				ProgressPercent = 35;
+
+				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => { },
+					System.Windows.Threading.DispatcherPriority.Background);
+
+
+				var result = await _paintingService.ExecuteAsync(
+					dataSource,
+					mapping,
+					lookupConfig,
+					writeConfig,
+					progressConfig
+				);
+
+				Status = $"Complete. Matched: {result.matched}, Unmatched: {result.unmatched}";
+			}
+			catch (Exception ex)
+			{
+				Status = "Failed: " + ex.Message;
+			}
+			finally
+			{
+				IsBusy = false;
+			}
 		}
+
 
 		private void OnSelectionChanged()
 		{
