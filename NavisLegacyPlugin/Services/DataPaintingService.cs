@@ -47,11 +47,21 @@ namespace NavisLegacyPlugin.Services
 
 			var table = await dataSource.GetDataAsync(progress.ProgressText);
 
+			progress.ProgressText?.Report("Processing data...");
+			progress.ProgressPercent?.Report(35);
+
 			var itemWriteMap =
 				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
+			int totalRows = table.Rows.Count;
+			int rowIndex = 0;
+
+			progress.ProgressText?.Report("Grouping data...");
+
 			foreach (DataRow row in table.Rows)
 			{
+				rowIndex++;
+
 				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
 				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
 
@@ -83,10 +93,28 @@ namespace NavisLegacyPlugin.Services
 					foreach (var kvp in tab.Value)
 						propDict[kvp.Key] = kvp.Value;
 				}
+
+				if (rowIndex % 50 == 0) // lower than 50 for responsiveness
+				{
+					int percent = 35 + (rowIndex * 30 / totalRows);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			int totalItems = itemWriteMap.Count;
+			int writeIndex = 0;
+
+			progress.ProgressText?.Report("Writing data...");
 
 			foreach (var entry in itemWriteMap)
 			{
+				writeIndex++;
+
 				if (writeConfig.WriteToLeafItems)
 				{
 					var leafItems = new List<ModelItem>();
@@ -101,7 +129,21 @@ namespace NavisLegacyPlugin.Services
 					foreach (var tab in entry.Value)
 						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
 				}
+
+				if (writeIndex % 200 == 0)
+				{
+					int percent = 65 + (writeIndex * 35 / totalItems);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+				}
 			}
+
+			progress.ProgressPercent?.Report(100);
+			progress.ProgressText?.Report("Complete.");
 
 			return (matched, unmatched);
 		}
@@ -123,8 +165,15 @@ namespace NavisLegacyPlugin.Services
 			var itemWriteMap =
 				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
+			int totalRows = table.Rows.Count;
+			int rowIndex = 0;
+
+			progress.ProgressText?.Report("Grouping data...");
+
 			foreach (DataRow row in table.Rows)
 			{
+				rowIndex++;
+				
 				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
 				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
 
@@ -156,10 +205,28 @@ namespace NavisLegacyPlugin.Services
 					foreach (var kvp in tab.Value)
 						propDict[kvp.Key] = kvp.Value;
 				}
+
+				if (rowIndex % 50 == 0) // throttle
+				{
+					int percent = 35 + (rowIndex * 30 / totalRows);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			int totalItems = itemWriteMap.Count;
+			int writeIndex = 0;
+
+			progress.ProgressText?.Report("Writing data...");
 
 			foreach (var entry in itemWriteMap)
 			{
+				writeIndex++;
+				
 				if (writeConfig.WriteToLeafItems)
 				{
 					var leafItems = new List<ModelItem>();
@@ -174,7 +241,21 @@ namespace NavisLegacyPlugin.Services
 					foreach (var tab in entry.Value)
 						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
 				}
+
+				if (writeIndex % 10 == 0)
+				{
+					int percent = 65 + (writeIndex * 35 / totalItems);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			progress.ProgressPercent?.Report(100);
+			progress.ProgressText?.Report("Complete.");
 
 			return (matched, unmatched);
 		}

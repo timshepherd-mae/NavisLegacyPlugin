@@ -208,8 +208,6 @@ namespace NavisLegacyPlugin.ViewModels
 					"3DUF:RID"
 				);
 
-				ProgressPercent = 35;
-
 				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 					() => { },
 					System.Windows.Threading.DispatcherPriority.Background);
