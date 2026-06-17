@@ -29,9 +29,20 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
+		public List<ModelItem> CollectionA { get; private set; } = new List<ModelItem>();
+		public List<ModelItem> CollectionB { get; private set; } = new List<ModelItem>();
+
+		public int CollectionACount => CollectionA.Count;
+		public int CollectionBCount => CollectionB.Count;
+
 		public ICommand WriteTestCommand { get; }
 		public ICommand GetSynchroDataCommand { get; }
 		public ICommand TransferRidCommand { get; }
+
+		public ICommand CaptureSelectionACommand => new RelayCommand(CaptureSelectionA);
+		public ICommand ClearSelectionACommand => new RelayCommand(ClearSelectionA);
+		public ICommand CaptureSelectionBCommand => new RelayCommand(CaptureSelectionB);
+		public ICommand ClearSelectionBCommand => new RelayCommand(ClearSelectionB);
 
 		private string _status = "Ready.";
 		public string Status
@@ -114,11 +125,11 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
-		// ✅ Extracted, explicit selection pipeline
+		
 		private async System.Threading.Tasks.Task<(int matched, int unmatched)> ExecuteSelectionTransferAsync()
 		{
-			var table = BuildSelectionADataTable();
-			var lookup = BuildSelectionLookup(GeometrySelectionService.SelectionB);
+			var table = BuildSelectionDataTable(CollectionA);
+			var lookup = BuildSelectionLookup(CollectionB);
 
 			var dataSource = new InMemoryDataSource(table);
 
@@ -151,7 +162,6 @@ namespace NavisLegacyPlugin.ViewModels
 				progressConfig);
 		}
 
-		// ✅ Consolidated GUID lookup helper
 		private Dictionary<string, ModelItem> BuildSelectionLookup(ModelItemCollection selection)
 		{
 			return selection
@@ -162,7 +172,16 @@ namespace NavisLegacyPlugin.ViewModels
 					StringComparer.OrdinalIgnoreCase);
 		}
 
-		// ✅ Existing CSV / Synchro path — unchanged
+		private Dictionary<string, ModelItem> BuildSelectionLookup(IEnumerable<ModelItem> items)
+		{
+			return items
+				.ToDictionary(
+					item => item.InstanceGuid.ToString("D"),
+					item => item,
+					StringComparer.OrdinalIgnoreCase);
+		}
+
+
 		private async void GetSynchroData()
 		{
 			try
@@ -239,6 +258,33 @@ namespace NavisLegacyPlugin.ViewModels
 			UpdateTransferState();
 		}
 
+		public void CaptureSelectionA()
+		{
+			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
+			CollectionA = selection.Cast<ModelItem>().ToList();
+			OnPropertyChanged(nameof(CollectionACount));
+		}
+
+		public void ClearSelectionA()
+		{
+			CollectionA.Clear();
+			OnPropertyChanged(nameof(CollectionACount));
+		}
+
+		public void CaptureSelectionB()
+		{
+			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
+			CollectionB = selection.Cast<ModelItem>().ToList();
+			OnPropertyChanged(nameof(CollectionBCount));
+		}
+
+		public void ClearSelectionB()
+		{
+			CollectionB.Clear();
+			OnPropertyChanged(nameof(CollectionBCount));
+		}
+
+
 		private void UpdateTransferState()
 		{
 			var hasA = GeometrySelectionService.SelectionA != null
@@ -260,6 +306,32 @@ namespace NavisLegacyPlugin.ViewModels
 			var selectionA = GeometrySelectionService.SelectionA;
 
 			foreach (ModelItem item in selectionA)
+			{
+				var row = table.NewRow();
+
+				row["InstanceGuid"] = item.InstanceGuid.ToString("D");
+
+				var prop = item.PropertyCategories
+					.FindCategoryByDisplayName("MAE-4D")?
+					.Properties
+					.FindPropertyByDisplayName("RID");
+
+				row["MAE-4D.RID"] = prop?.Value?.ToDisplayString() ?? "";
+
+				table.Rows.Add(row);
+			}
+
+			return table;
+		}
+
+		private DataTable BuildSelectionDataTable(IEnumerable<ModelItem> items)
+		{
+			var table = new DataTable();
+
+			table.Columns.Add("InstanceGuid", typeof(string));
+			table.Columns.Add("MAE-4D.RID", typeof(string));
+
+			foreach (var item in items)
 			{
 				var row = table.NewRow();
 
