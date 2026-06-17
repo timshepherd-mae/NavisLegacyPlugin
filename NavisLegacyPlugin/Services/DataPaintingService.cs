@@ -7,6 +7,7 @@ using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Models;
 using NavisLegacyPlugin.Services.Lookups;
+using NavisLegacyPlugin.Services.Mappers;
 
 namespace NavisLegacyPlugin.Services
 {
@@ -166,7 +167,7 @@ namespace NavisLegacyPlugin.Services
 
 			// ==========================
 			// DEBUG: confirm lookup size
-			System.Diagnostics.Debug.WriteLine($"[STEP A] Lookup count: {lookupDict.Count}");
+			//System.Diagnostics.Debug.WriteLine($"[STEP A] Lookup count: {lookupDict.Count}");
 			// ==========================
 
 			int matched = 0;
@@ -182,16 +183,35 @@ namespace NavisLegacyPlugin.Services
 
 			progress.ProgressText?.Report("Grouping data...");
 
+			var mappingStrategy = new MappingConfigStrategy(mapping);
+
+			// ==========================
+			// DEBUG
+			System.Diagnostics.Debug.WriteLine("[STEP B] MappingStrategy initialised");
+			// ==========================
+
 			foreach (DataRow row in table.Rows)
 			{
 				rowIndex++;
 				
-				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
-				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
+				var instruction = mappingStrategy.Map(row);
 
 				// ==========================
 				// DEBUG
-				System.Diagnostics.Debug.WriteLine($"[STEP A] MatchValue: {instruction?.MatchValue}");
+				//System.Diagnostics.Debug.WriteLine($"[STEP A] MatchValue: {instruction?.MatchValue}");
+				System.Diagnostics.Debug.WriteLine($"[STEP B] MatchValue: {instruction?.MatchValue}");
+				if (instruction == null)
+				{
+					System.Diagnostics.Debug.WriteLine("[STEP B] NULL instruction");
+				}
+				foreach (var tab in instruction.PropertiesByTab)
+				{
+					foreach (var prop in tab.Value)
+					{
+						System.Diagnostics.Debug.WriteLine(
+							$"[STEP B] WRITE VALUE → {tab.Key}.{prop.Key} = '{prop.Value}'");
+					}
+				}
 				// ==========================
 
 				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
