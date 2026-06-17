@@ -263,12 +263,16 @@ namespace NavisLegacyPlugin.ViewModels
 			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
 			CollectionA = selection.Cast<ModelItem>().ToList();
 			OnPropertyChanged(nameof(CollectionACount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
 		}
 
 		public void ClearSelectionA()
 		{
 			CollectionA.Clear();
 			OnPropertyChanged(nameof(CollectionACount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
 		}
 
 		public void CaptureSelectionB()
@@ -276,22 +280,23 @@ namespace NavisLegacyPlugin.ViewModels
 			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
 			CollectionB = selection.Cast<ModelItem>().ToList();
 			OnPropertyChanged(nameof(CollectionBCount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
 		}
 
 		public void ClearSelectionB()
 		{
 			CollectionB.Clear();
 			OnPropertyChanged(nameof(CollectionBCount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
 		}
 
 
 		private void UpdateTransferState()
 		{
-			var hasA = GeometrySelectionService.SelectionA != null
-					   && GeometrySelectionService.SelectionA.Count > 0;
-
-			var hasB = GeometrySelectionService.SelectionB != null
-					   && GeometrySelectionService.SelectionB.Count > 0;
+			var hasA = CollectionA != null && CollectionA.Count > 0;
+			var hasB = CollectionB != null && CollectionB.Count > 0;
 
 			CanTransferRid = hasA && hasB;
 		}
