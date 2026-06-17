@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Services.Lookups;
 
 namespace NavisLegacyPlugin.Services
 {
@@ -157,6 +158,17 @@ namespace NavisLegacyPlugin.Services
 		{
 			System.Diagnostics.Debug.WriteLine(">>> USING GUID LOOKUP PATH <<<");
 
+			// wrap existing lookup in provider
+			var lookupProvider = new DictionaryLookupProvider(lookup);
+
+			// build lookup through provider (no behaviour change)
+			var lookupDict = await lookupProvider.BuildLookupAsync(progress);
+
+			// ==========================
+			// DEBUG: confirm lookup size
+			System.Diagnostics.Debug.WriteLine($"[STEP A] Lookup count: {lookupDict.Count}");
+			// ==========================
+
 			int matched = 0;
 			int unmatched = 0;
 
@@ -177,10 +189,15 @@ namespace NavisLegacyPlugin.Services
 				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
 				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
 
+				// ==========================
+				// DEBUG
+				System.Diagnostics.Debug.WriteLine($"[STEP A] MatchValue: {instruction?.MatchValue}");
+				// ==========================
+
 				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
 					continue;
 
-				if (!lookup.TryGetValue(instruction.MatchValue, out var item))
+				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
 				{
 					unmatched++;
 					continue;
@@ -256,6 +273,11 @@ namespace NavisLegacyPlugin.Services
 
 			progress.ProgressPercent?.Report(100);
 			progress.ProgressText?.Report("Complete.");
+
+			// ==========================
+			// DEBUG
+			System.Diagnostics.Debug.WriteLine($"[STEP A] RESULT → Matched: {matched}, Unmatched: {unmatched}");
+			// ==========================
 
 			return (matched, unmatched);
 		}

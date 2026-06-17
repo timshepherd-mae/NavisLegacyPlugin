@@ -1,6 +1,6 @@
 ﻿SOLUTION CODE DUMP
 Root Folder: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin
-Generated: 2026-06-15 10:22:49
+Generated: 2026-06-16 15:10:31
 ====================================================================================================
 
 ===== TREE =====
@@ -1329,11 +1329,21 @@ namespace NavisLegacyPlugin.Services
 
 			var table = await dataSource.GetDataAsync(progress.ProgressText);
 
+			progress.ProgressText?.Report("Processing data...");
+			progress.ProgressPercent?.Report(35);
+
 			var itemWriteMap =
 				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
+			int totalRows = table.Rows.Count;
+			int rowIndex = 0;
+
+			progress.ProgressText?.Report("Grouping data...");
+
 			foreach (DataRow row in table.Rows)
 			{
+				rowIndex++;
+
 				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
 				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
 
@@ -1365,10 +1375,28 @@ namespace NavisLegacyPlugin.Services
 					foreach (var kvp in tab.Value)
 						propDict[kvp.Key] = kvp.Value;
 				}
+
+				if (rowIndex % 50 == 0) // lower than 50 for responsiveness
+				{
+					int percent = 35 + (rowIndex * 30 / totalRows);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			int totalItems = itemWriteMap.Count;
+			int writeIndex = 0;
+
+			progress.ProgressText?.Report("Writing data...");
 
 			foreach (var entry in itemWriteMap)
 			{
+				writeIndex++;
+
 				if (writeConfig.WriteToLeafItems)
 				{
 					var leafItems = new List<ModelItem>();
@@ -1383,7 +1411,21 @@ namespace NavisLegacyPlugin.Services
 					foreach (var tab in entry.Value)
 						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
 				}
+
+				if (writeIndex % 200 == 0)
+				{
+					int percent = 65 + (writeIndex * 35 / totalItems);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+				}
 			}
+
+			progress.ProgressPercent?.Report(100);
+			progress.ProgressText?.Report("Complete.");
 
 			return (matched, unmatched);
 		}
@@ -1405,8 +1447,15 @@ namespace NavisLegacyPlugin.Services
 			var itemWriteMap =
 				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
+			int totalRows = table.Rows.Count;
+			int rowIndex = 0;
+
+			progress.ProgressText?.Report("Grouping data...");
+
 			foreach (DataRow row in table.Rows)
 			{
+				rowIndex++;
+				
 				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
 				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
 
@@ -1438,10 +1487,28 @@ namespace NavisLegacyPlugin.Services
 					foreach (var kvp in tab.Value)
 						propDict[kvp.Key] = kvp.Value;
 				}
+
+				if (rowIndex % 50 == 0) // throttle
+				{
+					int percent = 35 + (rowIndex * 30 / totalRows);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			int totalItems = itemWriteMap.Count;
+			int writeIndex = 0;
+
+			progress.ProgressText?.Report("Writing data...");
 
 			foreach (var entry in itemWriteMap)
 			{
+				writeIndex++;
+				
 				if (writeConfig.WriteToLeafItems)
 				{
 					var leafItems = new List<ModelItem>();
@@ -1456,7 +1523,21 @@ namespace NavisLegacyPlugin.Services
 					foreach (var tab in entry.Value)
 						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
 				}
+
+				if (writeIndex % 10 == 0)
+				{
+					int percent = 65 + (writeIndex * 35 / totalItems);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			progress.ProgressPercent?.Report(100);
+			progress.ProgressText?.Report("Complete.");
 
 			return (matched, unmatched);
 		}
@@ -2971,8 +3052,74 @@ namespace NavisLegacyPlugin.ViewModels
 		// ✅ Existing CSV / Synchro path — unchanged
 		private async void GetSynchroData()
 		{
-			// existing implementation preserved
+			try
+			{
+				IsBusy = true;
+				ProgressText = "Reading CSV...";
+
+				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => { },
+					System.Windows.Threading.DispatcherPriority.Background);
+
+				var mapping = new MappingConfig
+				{
+					ColumnMap = new Dictionary<string, string>
+					{
+						{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
+						{ "3DUF:RID", "MAE-4D.RID" }
+					},
+					MatchColumn = "Synchro.SynchroID"
+				};
+
+				var lookupConfig = new LookupConfig
+				{
+					LookupTab = "Synchro",
+					LookupProperty = "SynchroID"
+				};
+
+				var writeConfig = new WriteConfig
+				{
+					WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+				};
+
+				var progressConfig = new ProgressConfig
+				{
+					ProgressText = new Progress<string>(t => ProgressText = t),
+					ProgressPercent = new Progress<int>(p => ProgressPercent = p)
+				};
+
+				var dataSource = new CsvDataSource(
+					_csvService,
+					@"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\data.csv",
+					2,
+					"3DUF:RID"
+				);
+
+				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => { },
+					System.Windows.Threading.DispatcherPriority.Background);
+
+
+				var result = await _paintingService.ExecuteAsync(
+					dataSource,
+					mapping,
+					lookupConfig,
+					writeConfig,
+					progressConfig
+				);
+
+				Status = $"Complete. Matched: {result.matched}, Unmatched: {result.unmatched}";
+			}
+			catch (Exception ex)
+			{
+				Status = "Failed: " + ex.Message;
+			}
+			finally
+			{
+				IsBusy = false;
+			}
 		}
+
 
 		private void OnSelectionChanged()
 		{
