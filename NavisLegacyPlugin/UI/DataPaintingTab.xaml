@@ -64,6 +64,11 @@
 						Margin="5"
 						Command="{Binding ClearSelectionACommand}" />
 
+					<Button Content="Show"
+						Width="70"
+						Margin="5"
+						Command="{Binding ShowSelectionACommand}" />
+
 					<TextBlock Margin="10,0,0,0"
 						VerticalAlignment="Center"
 						Text="{Binding CollectionACount, StringFormat='Items: {0}'}"/>
@@ -82,6 +87,11 @@
 						Width="80"
 						Margin="5"
 						Command="{Binding ClearSelectionBCommand}" />
+
+					<Button Content="Show"
+						Width="70"
+						Margin="5"
+						Command="{Binding ShowSelectionBCommand}" />
 
 					<TextBlock Margin="10,0,0,0"
 						VerticalAlignment="Center"

@@ -41,8 +41,10 @@ namespace NavisLegacyPlugin.ViewModels
 
 		public ICommand CaptureSelectionACommand => new RelayCommand(CaptureSelectionA);
 		public ICommand ClearSelectionACommand => new RelayCommand(ClearSelectionA);
+		public ICommand ShowSelectionACommand => new RelayCommand(ShowSelectionA);
 		public ICommand CaptureSelectionBCommand => new RelayCommand(CaptureSelectionB);
 		public ICommand ClearSelectionBCommand => new RelayCommand(ClearSelectionB);
+		public ICommand ShowSelectionBCommand => new RelayCommand(ShowSelectionB);
 
 		private string _status = "Ready.";
 		public string Status
@@ -275,6 +277,17 @@ namespace NavisLegacyPlugin.ViewModels
 			CommandManager.InvalidateRequerySuggested();
 		}
 
+		public void ShowSelectionA()
+		{
+			var doc = Application.ActiveDocument;
+			if (doc == null) return;
+			doc.CurrentSelection.Clear();
+			foreach (var item in CollectionA)
+			{
+				doc.CurrentSelection.Add(item);
+			}
+		}
+
 		public void CaptureSelectionB()
 		{
 			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
@@ -290,6 +303,17 @@ namespace NavisLegacyPlugin.ViewModels
 			OnPropertyChanged(nameof(CollectionBCount));
 			UpdateTransferState();
 			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ShowSelectionB()
+		{
+			var doc = Application.ActiveDocument;
+			if (doc == null) return;
+			doc.CurrentSelection.Clear();
+			foreach (var item in CollectionB)
+			{
+				doc.CurrentSelection.Add(item);
+			}
 		}
 
 
