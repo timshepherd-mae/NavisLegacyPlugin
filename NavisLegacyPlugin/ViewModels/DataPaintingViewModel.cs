@@ -29,6 +29,16 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
+		private string _collectMode = "Branch";
+		public string CollectMode
+		{	get => _collectMode;
+			set 
+			{ 
+				_collectMode = value; 
+				OnPropertyChanged(); 
+			}
+		}
+
 		public List<ModelItem> CollectionA { get; private set; } = new List<ModelItem>();
 		public List<ModelItem> CollectionB { get; private set; } = new List<ModelItem>();
 
@@ -262,8 +272,11 @@ namespace NavisLegacyPlugin.ViewModels
 
 		public void CaptureSelectionA()
 		{
-			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
-			CollectionA = selection.Cast<ModelItem>().ToList();
+			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems
+					.Cast<ModelItem>();
+
+			CollectionA = ResolveCollection(selection);
+
 			OnPropertyChanged(nameof(CollectionACount));
 			UpdateTransferState();
 			CommandManager.InvalidateRequerySuggested();
@@ -290,8 +303,11 @@ namespace NavisLegacyPlugin.ViewModels
 
 		public void CaptureSelectionB()
 		{
-			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
-			CollectionB = selection.Cast<ModelItem>().ToList();
+			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems
+								.Cast<ModelItem>();
+
+			CollectionB = ResolveCollection(selection);
+
 			OnPropertyChanged(nameof(CollectionBCount));
 			UpdateTransferState();
 			CommandManager.InvalidateRequerySuggested();
@@ -316,6 +332,62 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
+		private List<ModelItem> ResolveCollection(IEnumerable<ModelItem> input)
+		{
+			var result = new List<ModelItem>();
+
+			foreach (var item in input)
+			{
+				switch (CollectMode)
+				{
+					case "Branch":
+						// ✅ only what user selected
+						result.Add(item);
+						break;
+
+					case "SubBranch":
+						CollectBranchItems(item, result);
+						break;
+
+					case "Leaf":
+						CollectLeafItems(item, result);
+						break;
+				}
+			}
+
+			return result;
+		}
+
+		private void CollectLeafItems(ModelItem item, List<ModelItem> results)
+		{
+			if (item == null)
+				return;
+
+			if (item.Children == null || !item.Children.Any())
+			{
+				if (!results.Contains(item))
+					results.Add(item);
+
+				return;
+			}
+
+			foreach (var child in item.Children)
+				CollectLeafItems(child, results);
+		}
+
+		private void CollectBranchItems(ModelItem item, List<ModelItem> results)
+		{
+			if (item == null) return;
+
+			// ✅ only include items that HAVE children (i.e. branches)
+			if (item.Children != null && item.Children.Any())
+			{
+				results.Add(item);
+
+				foreach (var child in item.Children)
+					CollectBranchItems(child, results);
+			}
+		}
 
 		private void UpdateTransferState()
 		{
