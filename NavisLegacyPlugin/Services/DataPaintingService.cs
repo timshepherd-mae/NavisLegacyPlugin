@@ -117,40 +117,65 @@ namespace NavisLegacyPlugin.Services
 			{
 				writeIndex++;
 
-				if (writeConfig.WriteToLeafItems)
+				//if (writeConfig.WriteToLeafItems)
+				//{
+				//	var leafItems = new List<ModelItem>();
+				//	CollectLeafItems(entry.Key, leafItems);
+
+				//	foreach (var leaf in leafItems)
+				//	{
+				//		foreach (var tab in entry.Value)
+				//		{
+				//			if (!writeConfig.Overwrite)
+				//			{
+				//				var existingProp = leaf.PropertyCategories
+				//					.FindCategoryByDisplayName(tab.Key)?
+				//					.Properties
+				//					.FindPropertyByDisplayName("RID");
+
+				//				if (existingProp?.Value != null &&
+				//					!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
+				//				{
+				//					continue; // SKIP
+				//				}
+				//			}
+
+				//			_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
+				//		}
+				//	}
+				//}
+				//else
+				//{
+				//	foreach (var tab in entry.Value)
+				//	{
+				//		if (!writeConfig.Overwrite)
+				//		{
+				//			var existingProp = entry.Key.PropertyCategories
+				//				.FindCategoryByDisplayName(tab.Key)?
+				//				.Properties
+				//				.FindPropertyByDisplayName("RID");
+
+				//			if (existingProp?.Value != null &&
+				//				!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
+				//			{
+				//				continue; // SKIP
+				//			}
+				//		}
+
+				//		_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+				//	}
+				//}
+
+				var allItems = new List<ModelItem>();
+				CollectAllItems(entry.Key, allItems);
+
+				foreach (var tab in entry.Value)
 				{
-					var leafItems = new List<ModelItem>();
-					CollectLeafItems(entry.Key, leafItems);
-
-					foreach (var leaf in leafItems)
-					{
-						foreach (var tab in entry.Value)
-						{
-							if (!writeConfig.Overwrite)
-							{
-								var existingProp = leaf.PropertyCategories
-									.FindCategoryByDisplayName(tab.Key)?
-									.Properties
-									.FindPropertyByDisplayName("RID");
-
-								if (existingProp?.Value != null &&
-									!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
-								{
-									continue; // SKIP
-								}
-							}
-
-							_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
-						}
-					}
-				}
-				else
-				{
-					foreach (var tab in entry.Value)
+					foreach (var target in allItems)
 					{
 						if (!writeConfig.Overwrite)
 						{
-							var existingProp = entry.Key.PropertyCategories
+							var existingProp = target.PropertyCategories
 								.FindCategoryByDisplayName(tab.Key)?
 								.Properties
 								.FindPropertyByDisplayName("RID");
@@ -158,11 +183,11 @@ namespace NavisLegacyPlugin.Services
 							if (existingProp?.Value != null &&
 								!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
 							{
-								continue; // SKIP
+								continue; // skip existing
 							}
 						}
 
-						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+						_writer.WriteUserDefinedProperties(target, tab.Key, tab.Value);
 					}
 				}
 
@@ -297,41 +322,66 @@ namespace NavisLegacyPlugin.Services
 			foreach (var entry in itemWriteMap)
 			{
 				writeIndex++;
-				
-				if (writeConfig.WriteToLeafItems)
+
+				//if (writeConfig.WriteToLeafItems)
+				//{
+				//	var leafItems = new List<ModelItem>();
+				//	CollectLeafItems(entry.Key, leafItems);
+
+				//	foreach (var leaf in leafItems)
+				//	{
+				//		foreach (var tab in entry.Value)
+				//		{
+				//			if (!writeConfig.Overwrite)
+				//			{
+				//				var existingProp = leaf.PropertyCategories
+				//					.FindCategoryByDisplayName(tab.Key)?
+				//					.Properties
+				//					.FindPropertyByDisplayName("RID");
+
+				//				if (existingProp?.Value != null &&
+				//					!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
+				//				{
+				//					continue; // SKIP
+				//				}
+				//			}
+
+				//			_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
+				//		}
+				//	}
+				//}
+				//else
+				//{
+				//	foreach (var tab in entry.Value)
+				//	{
+				//		if (!writeConfig.Overwrite)
+				//		{
+				//			var existingProp = entry.Key.PropertyCategories
+				//				.FindCategoryByDisplayName(tab.Key)?
+				//				.Properties
+				//				.FindPropertyByDisplayName("RID");
+
+				//			if (existingProp?.Value != null &&
+				//				!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
+				//			{
+				//				continue; // SKIP
+				//			}
+				//		}
+
+				//		_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+				//	}
+				//}
+
+				var allItems = new List<ModelItem>();
+				CollectAllItems(entry.Key, allItems);
+
+				foreach (var tab in entry.Value)
 				{
-					var leafItems = new List<ModelItem>();
-					CollectLeafItems(entry.Key, leafItems);
-
-					foreach (var leaf in leafItems)
-					{
-						foreach (var tab in entry.Value)
-						{
-							if (!writeConfig.Overwrite)
-							{
-								var existingProp = leaf.PropertyCategories
-									.FindCategoryByDisplayName(tab.Key)?
-									.Properties
-									.FindPropertyByDisplayName("RID");
-
-								if (existingProp?.Value != null &&
-									!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
-								{
-									continue; // SKIP
-								}
-							}
-
-							_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
-						}
-					}
-				}
-				else
-				{
-					foreach (var tab in entry.Value)
+					foreach (var target in allItems)
 					{
 						if (!writeConfig.Overwrite)
 						{
-							var existingProp = entry.Key.PropertyCategories
+							var existingProp = target.PropertyCategories
 								.FindCategoryByDisplayName(tab.Key)?
 								.Properties
 								.FindPropertyByDisplayName("RID");
@@ -339,11 +389,11 @@ namespace NavisLegacyPlugin.Services
 							if (existingProp?.Value != null &&
 								!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
 							{
-								continue; // SKIP
+								continue; // skip existing
 							}
 						}
 
-						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+						_writer.WriteUserDefinedProperties(target, tab.Key, tab.Value);
 					}
 				}
 
@@ -383,6 +433,23 @@ namespace NavisLegacyPlugin.Services
 
 			foreach (ModelItem child in item.Children)
 				CollectLeafItems(child, results);
+		}
+
+		// ---------------------------------------------------------------------------------
+		// NEW: Full hierarchy traversal (Root + Branch + Leaf)
+		// ---------------------------------------------------------------------------------
+		private void CollectAllItems(ModelItem item, List<ModelItem> results)
+		{
+			if (item == null) return;
+
+			if (!results.Contains(item))
+				results.Add(item);
+
+			if (item.Children != null && item.Children.Any())
+			{
+				foreach (var child in item.Children)
+					CollectAllItems(child, results);
+			}
 		}
 	}
 }
