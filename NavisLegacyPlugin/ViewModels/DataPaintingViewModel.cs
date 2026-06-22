@@ -40,13 +40,35 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
-		private string _collectMode = "Branch";
+		// private string _collectMode = "Branch";
+		// ---------------------------------------------------------------------------------
+		// TEMP: Force CollectMode to LEAF only (ignore UI options)
+		// ---------------------------------------------------------------------------------
+		private string _collectMode = "Leaf";
+
 		public string CollectMode
-		{	get => _collectMode;
-			set 
-			{ 
-				_collectMode = value; 
-				OnPropertyChanged(); 
+		{
+			get => _collectMode;
+			set
+			{
+				// TEMP: Ignore UI radio buttons — always stay as LEAF
+				_collectMode = "Leaf";
+				OnPropertyChanged(nameof(CollectMode));
+			}
+		}
+
+		// ---------------------------------------------------------------------------------
+		// TEMP: Force WriteMode to LEAF only (ignore UI options)
+		// ---------------------------------------------------------------------------------
+		private string _writeMode = "Leaf";
+		public string WriteMode
+		{
+			get => _writeMode;
+			set
+			{
+				// TEMP: Ignore UI radio buttons — always stay as LEAF
+				_writeMode = "Leaf";
+				OnPropertyChanged(nameof(WriteMode));
 			}
 		}
 
@@ -95,12 +117,6 @@ namespace NavisLegacyPlugin.ViewModels
 			set { _isBusy = value; OnPropertyChanged(); }
 		}
 
-		private string _writeMode = "Branch";
-		public string WriteMode
-		{
-			get => _writeMode;
-			set { _writeMode = value; OnPropertyChanged(); }
-		}
 
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
@@ -151,6 +167,10 @@ namespace NavisLegacyPlugin.ViewModels
 		
 		private async System.Threading.Tasks.Task<(int matched, int unmatched)> ExecuteSelectionTransferAsync()
 		{
+			// TEMP SAFETY: enforce leaf behaviour during transfer
+			CollectMode = "Leaf";
+			WriteMode = "Leaf";
+
 			var table = BuildSelectionDataTable(CollectionA);
 			var lookup = BuildSelectionLookup(CollectionB);
 
