@@ -18,6 +18,7 @@ namespace NavisLegacyPlugin.Models
 	public class WriteConfig
 	{
 		public bool WriteToLeafItems { get; set; }
+		public bool Overwrite { get; set; }
 	}
 
 	public class ProgressConfig

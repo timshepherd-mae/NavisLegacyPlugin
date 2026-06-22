@@ -29,6 +29,17 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
+		private bool _overwrte;
+		public bool Overwrite
+		{
+			get => _overwrte;
+			set
+			{
+				_overwrte = value;
+				OnPropertyChanged();
+			}
+		}
+
 		private string _collectMode = "Branch";
 		public string CollectMode
 		{	get => _collectMode;
@@ -157,7 +168,8 @@ namespace NavisLegacyPlugin.ViewModels
 
 			var writeConfig = new WriteConfig
 			{
-				WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+				WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase),
+				Overwrite = this.Overwrite
 			};
 
 			var progressConfig = new ProgressConfig
@@ -223,7 +235,8 @@ namespace NavisLegacyPlugin.ViewModels
 
 				var writeConfig = new WriteConfig
 				{
-					WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+					WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase),
+					Overwrite = this.Overwrite
 				};
 
 				var progressConfig = new ProgressConfig

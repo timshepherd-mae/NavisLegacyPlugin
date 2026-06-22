@@ -123,13 +123,47 @@ namespace NavisLegacyPlugin.Services
 					CollectLeafItems(entry.Key, leafItems);
 
 					foreach (var leaf in leafItems)
+					{
 						foreach (var tab in entry.Value)
+						{
+							if (!writeConfig.Overwrite)
+							{
+								var existingProp = leaf.PropertyCategories
+									.FindCategoryByDisplayName(tab.Key)?
+									.Properties
+									.FindPropertyByDisplayName("RID");
+
+								if (existingProp?.Value != null &&
+									!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
+								{
+									continue; // SKIP
+								}
+							}
+
 							_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
+						}
+					}
 				}
 				else
 				{
 					foreach (var tab in entry.Value)
+					{
+						if (!writeConfig.Overwrite)
+						{
+							var existingProp = entry.Key.PropertyCategories
+								.FindCategoryByDisplayName(tab.Key)?
+								.Properties
+								.FindPropertyByDisplayName("RID");
+
+							if (existingProp?.Value != null &&
+								!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
+							{
+								continue; // SKIP
+							}
+						}
+
 						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+					}
 				}
 
 				if (writeIndex % 200 == 0)
@@ -270,13 +304,47 @@ namespace NavisLegacyPlugin.Services
 					CollectLeafItems(entry.Key, leafItems);
 
 					foreach (var leaf in leafItems)
+					{
 						foreach (var tab in entry.Value)
+						{
+							if (!writeConfig.Overwrite)
+							{
+								var existingProp = leaf.PropertyCategories
+									.FindCategoryByDisplayName(tab.Key)?
+									.Properties
+									.FindPropertyByDisplayName("RID");
+
+								if (existingProp?.Value != null &&
+									!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
+								{
+									continue; // SKIP
+								}
+							}
+
 							_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
+						}
+					}
 				}
 				else
 				{
 					foreach (var tab in entry.Value)
+					{
+						if (!writeConfig.Overwrite)
+						{
+							var existingProp = entry.Key.PropertyCategories
+								.FindCategoryByDisplayName(tab.Key)?
+								.Properties
+								.FindPropertyByDisplayName("RID");
+
+							if (existingProp?.Value != null &&
+								!string.IsNullOrEmpty(existingProp.Value.ToDisplayString()))
+							{
+								continue; // SKIP
+							}
+						}
+
 						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+					}
 				}
 
 				if (writeIndex % 10 == 0)
