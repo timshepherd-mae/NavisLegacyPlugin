@@ -150,9 +150,6 @@ namespace NavisLegacyPlugin.ViewModels
 		
 		private async System.Threading.Tasks.Task<(int matched, int unmatched)> ExecuteSelectionTransferAsync()
 		{
-			// TEMP DEV FLAGS
-			var modelDepth = ModelDepthOption.Branch;
-			var overwrite = false;
 
 			var table = BuildSelectionDataTable(CollectionA);
 			var lookup = BuildSelectionLookup(CollectionB);
@@ -287,7 +284,11 @@ namespace NavisLegacyPlugin.ViewModels
 		public void CaptureSelectionA()
 		{
 			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
-			CollectionA = selection.Cast<ModelItem>().ToList();
+			CollectionA = selection
+				.Cast<ModelItem>()
+				.SelectMany(item => ResolveByDepth(item))
+				.Distinct()
+				.ToList();
 			OnPropertyChanged(nameof(CollectionACount));
 			UpdateTransferState();
 			CommandManager.InvalidateRequerySuggested();
@@ -315,7 +316,11 @@ namespace NavisLegacyPlugin.ViewModels
 		public void CaptureSelectionB()
 		{
 			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
-			CollectionB = selection.Cast<ModelItem>().ToList();
+			CollectionB = selection
+				.Cast<ModelItem>()
+				.SelectMany(item => ResolveByDepth(item))
+				.Distinct()
+				.ToList();
 			OnPropertyChanged(nameof(CollectionBCount));
 			UpdateTransferState();
 			CommandManager.InvalidateRequerySuggested();
@@ -401,6 +406,53 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 
 			return table;
+		}
+
+		private IEnumerable<ModelItem> ResolveByDepth(ModelItem item)
+		{
+			var results = new List<ModelItem>();
+
+			switch (ModelDepth)
+			{
+				case ModelDepthOption.All:
+					CollectAllItems(item, results);
+					break;
+
+				case ModelDepthOption.Branch:
+					CollectBranchItems(item, results);
+					break;
+			}
+
+			return results;
+		}
+
+		private void CollectAllItems(ModelItem item, List<ModelItem> results)
+		{
+			if (item == null) return;
+
+			if (!results.Contains(item))
+				results.Add(item);
+
+			if (item.Children != null)
+			{
+				foreach (var child in item.Children)
+					CollectAllItems(child, results);
+			}
+		}
+
+		private void CollectBranchItems(ModelItem item, List<ModelItem> results)
+		{
+			if (item == null) return;
+
+			// include item if it has children (root/branch/sub-branch)
+			if (item.Children != null && item.Children.Any())
+			{
+				if (!results.Contains(item))
+					results.Add(item);
+
+				foreach (var child in item.Children)
+					CollectBranchItems(child, results);
+			}
 		}
 
 	}
