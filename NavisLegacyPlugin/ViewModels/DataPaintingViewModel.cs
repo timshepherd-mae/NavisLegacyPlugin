@@ -81,6 +81,26 @@ namespace NavisLegacyPlugin.ViewModels
 			set { _writeMode = value; OnPropertyChanged(); }
 		}
 
+		public enum ModelDepthOption
+		{
+			All,
+			Branch
+		}
+
+		private ModelDepthOption _modelDepth = ModelDepthOption.Branch;
+		public ModelDepthOption ModelDepth
+		{
+			get => _modelDepth;
+			set { _modelDepth = value; OnPropertyChanged(); }
+		}
+
+		private bool _overwrite = false; // false = skip
+		public bool Overwrite
+		{
+			get => _overwrite;
+			set { _overwrite = value; OnPropertyChanged(); }
+		}
+
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
 			_writer = writer;
