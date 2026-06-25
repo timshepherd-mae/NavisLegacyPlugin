@@ -150,6 +150,10 @@ namespace NavisLegacyPlugin.ViewModels
 		
 		private async System.Threading.Tasks.Task<(int matched, int unmatched)> ExecuteSelectionTransferAsync()
 		{
+			// TEMP DEV FLAGS
+			var modelDepth = ModelDepthOption.Branch;
+			var overwrite = false;
+
 			var table = BuildSelectionDataTable(CollectionA);
 			var lookup = BuildSelectionLookup(CollectionB);
 
