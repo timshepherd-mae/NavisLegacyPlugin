@@ -162,19 +162,11 @@ namespace NavisLegacyPlugin.Services
 		{
 			System.Diagnostics.Debug.WriteLine(">>> USING GUID LOOKUP PATH <<<");
 
-
-
-
 			// wrap existing lookup in provider
 			var lookupProvider = new DictionaryLookupProvider(lookup);
 
 			// build lookup through provider (no behaviour change)
 			var lookupDict = await lookupProvider.BuildLookupAsync(progress);
-
-			// ==========================
-			// DEBUG: confirm lookup size
-			//System.Diagnostics.Debug.WriteLine($"[STEP A] Lookup count: {lookupDict.Count}");
-			// ==========================
 
 			int matched = 0;
 			int unmatched = 0;
@@ -193,54 +185,21 @@ namespace NavisLegacyPlugin.Services
 
 			var mappingStrategy = new MappingConfigStrategy(mapping);
 
-			// ==========================
-			// DEBUG
-			System.Diagnostics.Debug.WriteLine("[STEP B] MappingStrategy initialised");
-			// ==========================
-
 			foreach (DataRow row in table.Rows)
 			{
 				rowIndex++;
 				
 				var instruction = mappingStrategy.Map(row);
 
-				// ==========================
-				// DEBUG
-				//System.Diagnostics.Debug.WriteLine($"[STEP A] MatchValue: {instruction?.MatchValue}");
-				System.Diagnostics.Debug.WriteLine($"[STEP B] MatchValue: {instruction?.MatchValue}");
-				if (instruction == null)
-				{
-					System.Diagnostics.Debug.WriteLine("[STEP B] NULL instruction");
-				}
-				foreach (var tab in instruction.PropertiesByTab)
-				{
-					foreach (var prop in tab.Value)
-					{
-						System.Diagnostics.Debug.WriteLine(
-							$"[STEP B] WRITE VALUE → {tab.Key}.{prop.Key} = '{prop.Value}'");
-					}
-				}
-				// ==========================
-
 				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
 					continue;
 
 
-				// DEBUGGING [C]
-				//
-				Debug.WriteLine($"[DEBUG] TRY MATCH GUID = {instruction.MatchValue}");
-
 				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
 				{
-					Debug.WriteLine($"[DEBUG] LOOKUP FAIL: {instruction.MatchValue}");
 					unmatched++;
 					continue;
 				}
-
-				Debug.WriteLine($"[DEBUG] LOOKUP HIT: {instruction.MatchValue} → {item.DisplayName}");
-				//
-				// DEBUGGING [C]
-
 
 				matched++;
 
@@ -287,8 +246,8 @@ namespace NavisLegacyPlugin.Services
 				{
 					foreach (var prop in tab.Value)
 					{
-						var categoryName = tab.Key;   // "MAE-4D"
-						var propName = prop.Key;      // "RID"
+						var categoryName = tab.Key;
+						var propName = prop.Key;
 						var propValue = prop.Value;
 
 						var category = entry.Key.PropertyCategories
@@ -298,25 +257,14 @@ namespace NavisLegacyPlugin.Services
 							.Properties
 							.FindPropertyByDisplayName(propName);
 
-						Debug.WriteLine(
-							$"[DEBUG] EXIST CHECK → TARGET={entry.Key.DisplayName} PROP EXISTS={(existingProp != null)}");
-
-						// ✅ CLEAN SKIP LOGIC
 						if (!writeConfig.Overwrite)
 						{
 							if (existingProp != null)
 							{
-								Debug.WriteLine(
-									$"[DEBUG] SKIP (PROP EXISTS) → TARGET={entry.Key.DisplayName}");
-
 								skipped++;
 								continue;
 							}
 						}
-
-						// ✅ WRITE
-						Debug.WriteLine(
-							$"[DEBUG] WRITE → TARGET={entry.Key.DisplayName} PROP={categoryName}.{propName} VALUE='{propValue}'");
 
 						_writer.WriteUserDefinedProperties(
 							entry.Key,
@@ -345,14 +293,6 @@ namespace NavisLegacyPlugin.Services
 
 			progress.ProgressPercent?.Report(100);
 			progress.ProgressText?.Report("Complete.");
-
-			// ==========================
-			// DEBUG
-			System.Diagnostics.Debug.WriteLine($"[STEP A] RESULT → Matched: {matched}, Unmatched: {unmatched}");
-
-			System.Diagnostics.Debug.WriteLine($"[STEP B] RESULT → Written: {written}, Skipped: {skipped}");
-
-			// ==========================
 
 			return (matched, unmatched);
 		}
