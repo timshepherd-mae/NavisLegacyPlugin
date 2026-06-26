@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Services.Lookups;
+using NavisLegacyPlugin.Services.Mappers;
 
 namespace NavisLegacyPlugin.Services
 {
@@ -33,6 +36,8 @@ namespace NavisLegacyPlugin.Services
 
 			int matched = 0;
 			int unmatched = 0;
+
+
 
 			var lookupDict = await _lookupService.GetOrBuildLookupAsync(
 				lookup.LookupTab,
@@ -157,8 +162,24 @@ namespace NavisLegacyPlugin.Services
 		{
 			System.Diagnostics.Debug.WriteLine(">>> USING GUID LOOKUP PATH <<<");
 
+
+
+
+			// wrap existing lookup in provider
+			var lookupProvider = new DictionaryLookupProvider(lookup);
+
+			// build lookup through provider (no behaviour change)
+			var lookupDict = await lookupProvider.BuildLookupAsync(progress);
+
+			// ==========================
+			// DEBUG: confirm lookup size
+			//System.Diagnostics.Debug.WriteLine($"[STEP A] Lookup count: {lookupDict.Count}");
+			// ==========================
+
 			int matched = 0;
 			int unmatched = 0;
+			int written = 0;
+			int skipped = 0;
 
 			var table = await dataSource.GetDataAsync(progress.ProgressText);
 
@@ -170,21 +191,56 @@ namespace NavisLegacyPlugin.Services
 
 			progress.ProgressText?.Report("Grouping data...");
 
+			var mappingStrategy = new MappingConfigStrategy(mapping);
+
+			// ==========================
+			// DEBUG
+			System.Diagnostics.Debug.WriteLine("[STEP B] MappingStrategy initialised");
+			// ==========================
+
 			foreach (DataRow row in table.Rows)
 			{
 				rowIndex++;
 				
-				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
-				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
+				var instruction = mappingStrategy.Map(row);
+
+				// ==========================
+				// DEBUG
+				//System.Diagnostics.Debug.WriteLine($"[STEP A] MatchValue: {instruction?.MatchValue}");
+				System.Diagnostics.Debug.WriteLine($"[STEP B] MatchValue: {instruction?.MatchValue}");
+				if (instruction == null)
+				{
+					System.Diagnostics.Debug.WriteLine("[STEP B] NULL instruction");
+				}
+				foreach (var tab in instruction.PropertiesByTab)
+				{
+					foreach (var prop in tab.Value)
+					{
+						System.Diagnostics.Debug.WriteLine(
+							$"[STEP B] WRITE VALUE → {tab.Key}.{prop.Key} = '{prop.Value}'");
+					}
+				}
+				// ==========================
 
 				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
 					continue;
 
-				if (!lookup.TryGetValue(instruction.MatchValue, out var item))
+
+				// DEBUGGING [C]
+				//
+				Debug.WriteLine($"[DEBUG] TRY MATCH GUID = {instruction.MatchValue}");
+
+				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
 				{
+					Debug.WriteLine($"[DEBUG] LOOKUP FAIL: {instruction.MatchValue}");
 					unmatched++;
 					continue;
 				}
+
+				Debug.WriteLine($"[DEBUG] LOOKUP HIT: {instruction.MatchValue} → {item.DisplayName}");
+				//
+				// DEBUGGING [C]
+
 
 				matched++;
 
@@ -227,20 +283,53 @@ namespace NavisLegacyPlugin.Services
 			{
 				writeIndex++;
 				
-				if (writeConfig.WriteToLeafItems)
+				foreach (var tab in entry.Value)
 				{
-					var leafItems = new List<ModelItem>();
-					CollectLeafItems(entry.Key, leafItems);
+					foreach (var prop in tab.Value)
+					{
+						var categoryName = tab.Key;   // "MAE-4D"
+						var propName = prop.Key;      // "RID"
+						var propValue = prop.Value;
 
-					foreach (var leaf in leafItems)
-						foreach (var tab in entry.Value)
-							_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
+						var category = entry.Key.PropertyCategories
+							.FindCategoryByDisplayName(categoryName);
+
+						var existingProp = category?
+							.Properties
+							.FindPropertyByDisplayName(propName);
+
+						Debug.WriteLine(
+							$"[DEBUG] EXIST CHECK → TARGET={entry.Key.DisplayName} PROP EXISTS={(existingProp != null)}");
+
+						// ✅ CLEAN SKIP LOGIC
+						if (!writeConfig.Overwrite)
+						{
+							if (existingProp != null)
+							{
+								Debug.WriteLine(
+									$"[DEBUG] SKIP (PROP EXISTS) → TARGET={entry.Key.DisplayName}");
+
+								skipped++;
+								continue;
+							}
+						}
+
+						// ✅ WRITE
+						Debug.WriteLine(
+							$"[DEBUG] WRITE → TARGET={entry.Key.DisplayName} PROP={categoryName}.{propName} VALUE='{propValue}'");
+
+						_writer.WriteUserDefinedProperties(
+							entry.Key,
+							categoryName,
+							new Dictionary<string, string>
+							{
+								{ propName, propValue }
+							});
+
+						written++;
+					}
 				}
-				else
-				{
-					foreach (var tab in entry.Value)
-						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
-				}
+
 
 				if (writeIndex % 10 == 0)
 				{
@@ -256,6 +345,14 @@ namespace NavisLegacyPlugin.Services
 
 			progress.ProgressPercent?.Report(100);
 			progress.ProgressText?.Report("Complete.");
+
+			// ==========================
+			// DEBUG
+			System.Diagnostics.Debug.WriteLine($"[STEP A] RESULT → Matched: {matched}, Unmatched: {unmatched}");
+
+			System.Diagnostics.Debug.WriteLine($"[STEP B] RESULT → Written: {written}, Skipped: {skipped}");
+
+			// ==========================
 
 			return (matched, unmatched);
 		}

@@ -17,6 +17,7 @@ namespace NavisLegacyPlugin.Models
 
 	public class WriteConfig
 	{
+		public bool Overwrite { get; set; } = false;
 		public bool WriteToLeafItems { get; set; }
 	}
 

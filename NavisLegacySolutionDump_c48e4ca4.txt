@@ -1,6 +1,6 @@
 ﻿SOLUTION CODE DUMP
 Root Folder: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin
-Generated: 2026-06-15 12:29:54
+Generated: 2026-06-18 09:24:14
 ====================================================================================================
 
 ===== TREE =====
@@ -41,6 +41,12 @@ Generated: 2026-06-15 12:29:54
         - NavisSelectionDataSource.cs
         - NavisworksContextService.cs
         - WindowService.cs
+        + Lookups
+            - DictionaryLookupProvider.cs
+            - ILookupProvider.cs
+        + Mappers
+            - IMappingStrategy.cs
+            - MappingConfigStrategy.cs
     + UI
         - DataPaintingTab.xaml
         - DataPaintingTab.xaml.cs
@@ -1288,6 +1294,8 @@ using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Services.Lookups;
+using NavisLegacyPlugin.Services.Mappers;
 
 namespace NavisLegacyPlugin.Services
 {
@@ -1329,11 +1337,21 @@ namespace NavisLegacyPlugin.Services
 
 			var table = await dataSource.GetDataAsync(progress.ProgressText);
 
+			progress.ProgressText?.Report("Processing data...");
+			progress.ProgressPercent?.Report(35);
+
 			var itemWriteMap =
 				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
+			int totalRows = table.Rows.Count;
+			int rowIndex = 0;
+
+			progress.ProgressText?.Report("Grouping data...");
+
 			foreach (DataRow row in table.Rows)
 			{
+				rowIndex++;
+
 				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
 				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
 
@@ -1365,10 +1383,28 @@ namespace NavisLegacyPlugin.Services
 					foreach (var kvp in tab.Value)
 						propDict[kvp.Key] = kvp.Value;
 				}
+
+				if (rowIndex % 50 == 0) // lower than 50 for responsiveness
+				{
+					int percent = 35 + (rowIndex * 30 / totalRows);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			int totalItems = itemWriteMap.Count;
+			int writeIndex = 0;
+
+			progress.ProgressText?.Report("Writing data...");
 
 			foreach (var entry in itemWriteMap)
 			{
+				writeIndex++;
+
 				if (writeConfig.WriteToLeafItems)
 				{
 					var leafItems = new List<ModelItem>();
@@ -1383,7 +1419,21 @@ namespace NavisLegacyPlugin.Services
 					foreach (var tab in entry.Value)
 						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
 				}
+
+				if (writeIndex % 200 == 0)
+				{
+					int percent = 65 + (writeIndex * 35 / totalItems);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+				}
 			}
+
+			progress.ProgressPercent?.Report(100);
+			progress.ProgressText?.Report("Complete.");
 
 			return (matched, unmatched);
 		}
@@ -1397,6 +1447,17 @@ namespace NavisLegacyPlugin.Services
 		{
 			System.Diagnostics.Debug.WriteLine(">>> USING GUID LOOKUP PATH <<<");
 
+			// wrap existing lookup in provider
+			var lookupProvider = new DictionaryLookupProvider(lookup);
+
+			// build lookup through provider (no behaviour change)
+			var lookupDict = await lookupProvider.BuildLookupAsync(progress);
+
+			// ==========================
+			// DEBUG: confirm lookup size
+			//System.Diagnostics.Debug.WriteLine($"[STEP A] Lookup count: {lookupDict.Count}");
+			// ==========================
+
 			int matched = 0;
 			int unmatched = 0;
 
@@ -1405,15 +1466,46 @@ namespace NavisLegacyPlugin.Services
 			var itemWriteMap =
 				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
+			int totalRows = table.Rows.Count;
+			int rowIndex = 0;
+
+			progress.ProgressText?.Report("Grouping data...");
+
+			var mappingStrategy = new MappingConfigStrategy(mapping);
+
+			// ==========================
+			// DEBUG
+			System.Diagnostics.Debug.WriteLine("[STEP B] MappingStrategy initialised");
+			// ==========================
+
 			foreach (DataRow row in table.Rows)
 			{
-				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
-				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
+				rowIndex++;
+				
+				var instruction = mappingStrategy.Map(row);
+
+				// ==========================
+				// DEBUG
+				//System.Diagnostics.Debug.WriteLine($"[STEP A] MatchValue: {instruction?.MatchValue}");
+				System.Diagnostics.Debug.WriteLine($"[STEP B] MatchValue: {instruction?.MatchValue}");
+				if (instruction == null)
+				{
+					System.Diagnostics.Debug.WriteLine("[STEP B] NULL instruction");
+				}
+				foreach (var tab in instruction.PropertiesByTab)
+				{
+					foreach (var prop in tab.Value)
+					{
+						System.Diagnostics.Debug.WriteLine(
+							$"[STEP B] WRITE VALUE → {tab.Key}.{prop.Key} = '{prop.Value}'");
+					}
+				}
+				// ==========================
 
 				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
 					continue;
 
-				if (!lookup.TryGetValue(instruction.MatchValue, out var item))
+				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
 				{
 					unmatched++;
 					continue;
@@ -1438,10 +1530,28 @@ namespace NavisLegacyPlugin.Services
 					foreach (var kvp in tab.Value)
 						propDict[kvp.Key] = kvp.Value;
 				}
+
+				if (rowIndex % 50 == 0) // throttle
+				{
+					int percent = 35 + (rowIndex * 30 / totalRows);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			int totalItems = itemWriteMap.Count;
+			int writeIndex = 0;
+
+			progress.ProgressText?.Report("Writing data...");
 
 			foreach (var entry in itemWriteMap)
 			{
+				writeIndex++;
+				
 				if (writeConfig.WriteToLeafItems)
 				{
 					var leafItems = new List<ModelItem>();
@@ -1456,7 +1566,26 @@ namespace NavisLegacyPlugin.Services
 					foreach (var tab in entry.Value)
 						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
 				}
+
+				if (writeIndex % 10 == 0)
+				{
+					int percent = 65 + (writeIndex * 35 / totalItems);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			progress.ProgressPercent?.Report(100);
+			progress.ProgressText?.Report("Complete.");
+
+			// ==========================
+			// DEBUG
+			System.Diagnostics.Debug.WriteLine($"[STEP A] RESULT → Matched: {matched}, Unmatched: {unmatched}");
+			// ==========================
 
 			return (matched, unmatched);
 		}
@@ -2287,6 +2416,103 @@ namespace NavisLegacyPlugin
 
 
 ====================================================================================================
+FILE: Services\Lookups || DictionaryLookupProvider.cs
+FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\Services\Lookups\DictionaryLookupProvider.cs
+====================================================================================================
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Autodesk.Navisworks.Api;
+using NavisLegacyPlugin.Models;
+
+namespace NavisLegacyPlugin.Services.Lookups
+{
+	public class DictionaryLookupProvider : ILookupProvider
+	{
+		private readonly Dictionary<string, ModelItem> _lookup;
+
+		public DictionaryLookupProvider(Dictionary<string, ModelItem> lookup)
+		{
+			_lookup = lookup;
+		}
+
+		public Task<Dictionary<string, ModelItem>> BuildLookupAsync(ProgressConfig progress)
+		{
+			return Task.FromResult(_lookup);
+		}
+	}
+}
+
+
+====================================================================================================
+FILE: Services\Lookups || ILookupProvider.cs
+FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\Services\Lookups\ILookupProvider.cs
+====================================================================================================
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Autodesk.Navisworks.Api;
+using NavisLegacyPlugin.Models;
+
+namespace NavisLegacyPlugin.Services.Lookups
+{
+	public interface ILookupProvider
+	{
+		Task<Dictionary<string, ModelItem>> BuildLookupAsync(ProgressConfig progress);
+	}
+}
+
+
+====================================================================================================
+FILE: Services\Mappers || IMappingStrategy.cs
+FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\Services\Mappers\IMappingStrategy.cs
+====================================================================================================
+using System.Data;
+using NavisLegacyPlugin.Helpers;
+using NavisLegacyPlugin.Models;
+
+namespace NavisLegacyPlugin.Services.Mappers
+{
+	public interface IMappingStrategy
+	{
+		PaintInstruction Map(DataRow row);
+	}
+}
+
+
+====================================================================================================
+FILE: Services\Mappers || MappingConfigStrategy.cs
+FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\Services\Mappers\MappingConfigStrategy.cs
+====================================================================================================
+using System.Collections.Generic;
+using System.Data;
+using NavisLegacyPlugin.Helpers;
+using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Services;
+
+namespace NavisLegacyPlugin.Services.Mappers
+{
+	public class MappingConfigStrategy : IMappingStrategy
+	{
+		private readonly Dictionary<string, string> _columnMap;
+		private readonly string _matchColumn;
+
+		public MappingConfigStrategy(MappingConfig config)
+		{
+			_columnMap = config.ColumnMap;
+			_matchColumn = config.MatchColumn;
+		}
+
+		public PaintInstruction Map(DataRow row)
+		{
+			var mapped = PropertyMappingHelper.MapRow(row, _columnMap);
+			var instruction = PaintInstructionBuilder.Build(mapped, _matchColumn);
+
+			return instruction;
+		}
+	}
+}
+
+
+====================================================================================================
 FILE: UI || DataPaintingTab.xaml
 FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\UI\DataPaintingTab.xaml
 ====================================================================================================
@@ -2307,8 +2533,9 @@ FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\U
 	<Grid Margin="10">
 
 		<Grid.RowDefinitions>
-			<RowDefinition Height="Auto"/>			<!-- Mode -->
-			<RowDefinition Height="Auto"/>			<!-- Write -->
+			<RowDefinition Height="Auto"/>			<!-- Write Mode -->
+			<RowDefinition Height="Auto"/>			<!-- Get Model Collections -->
+			<RowDefinition Height="Auto"/>			<!-- Write Test -->
 			<RowDefinition Height="Auto"/>			<!-- GetData -->
 			<RowDefinition Height="Auto"/>			<!-- Transfer RID -->
 			<RowDefinition Height="Auto"/>			<!-- Progress bar -->
@@ -2337,23 +2564,68 @@ FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\U
                      IsChecked="{Binding WriteMode, Converter={StaticResource EqualsConverter}, ConverterParameter=Leaf}"/>
 			
 		</StackPanel>
+		
+		<!-- Get Model Collections -->
 
-		<!-- Existing button -->
-		<Button Grid.Row="1"
+		<StackPanel Grid.Row="1" Orientation="Vertical" Margin="5">
+
+			<!-- ✅ COLLECTION A -->
+			<GroupBox Header="Collection A" Margin="5">
+				<StackPanel Orientation="Horizontal" Margin="5">
+					<Button Content="Capture Selection"
+						Width="120"
+						Margin="5"
+						Command="{Binding CaptureSelectionACommand}" />
+
+					<Button Content="Clear"
+						Width="80"
+						Margin="5"
+						Command="{Binding ClearSelectionACommand}" />
+
+					<TextBlock Margin="10,0,0,0"
+						VerticalAlignment="Center"
+						Text="{Binding CollectionACount, StringFormat='Items: {0}'}"/>
+				</StackPanel>
+			</GroupBox>
+
+			<!-- ✅ COLLECTION B -->
+			<GroupBox Header="Collection B" Margin="5">
+				<StackPanel Orientation="Horizontal" Margin="5">
+					<Button Content="Capture Selection"
+						Width="120"
+						Margin="5"
+						Command="{Binding CaptureSelectionBCommand}" />
+
+					<Button Content="Clear"
+						Width="80"
+						Margin="5"
+						Command="{Binding ClearSelectionBCommand}" />
+
+					<TextBlock Margin="10,0,0,0"
+						VerticalAlignment="Center"
+						Text="{Binding CollectionBCount, StringFormat='Items: {0}'}"/>
+				</StackPanel>
+			</GroupBox>
+
+		</StackPanel>
+
+
+		<!-- Write Test -->
+		<Button Grid.Row="2"
             Content="Write Test Property"
             Width="160"
             Command="{Binding WriteTestCommand}"
 				IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
 
 		<!-- Get Synchro Data button -->
-		<Button Grid.Row="2"
+		<Button Grid.Row="3"
             Content="Get Synchro Data"
             Width="160"
             Margin="0,10,0,0"
             Command="{Binding GetSynchroDataCommand}"
 				IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
 
-		<Button Grid.Row="3"
+		<Button Grid.Row="4"
 			Content="Transfer RID A → B"
 			Width="160"
 			Margin="0,10,0,0"
@@ -2362,7 +2634,7 @@ FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\U
 		
 		
 		<!-- Progress bar -->
-		<ProgressBar Grid.Row="4"
+		<ProgressBar Grid.Row="5"
 				 Height="18"
 				 Margin="0,10,0,0"
 				 Minimum="0"
@@ -2370,12 +2642,12 @@ FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\U
 				 Value="{Binding ProgressPercent}" />
 
 		<!-- Progress text -->
-		<TextBlock Grid.Row="5"
+		<TextBlock Grid.Row="6"
 			   Margin="0,6,0,0"
 			   Text="{Binding ProgressText}" />
 
 		<!-- Status -->
-		<TextBlock Grid.Row="6"
+		<TextBlock Grid.Row="7"
                Margin="0,10,0,0"
                Text="{Binding Status}" />
 
@@ -2835,9 +3107,20 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
+		public List<ModelItem> CollectionA { get; private set; } = new List<ModelItem>();
+		public List<ModelItem> CollectionB { get; private set; } = new List<ModelItem>();
+
+		public int CollectionACount => CollectionA.Count;
+		public int CollectionBCount => CollectionB.Count;
+
 		public ICommand WriteTestCommand { get; }
 		public ICommand GetSynchroDataCommand { get; }
 		public ICommand TransferRidCommand { get; }
+
+		public ICommand CaptureSelectionACommand => new RelayCommand(CaptureSelectionA);
+		public ICommand ClearSelectionACommand => new RelayCommand(ClearSelectionA);
+		public ICommand CaptureSelectionBCommand => new RelayCommand(CaptureSelectionB);
+		public ICommand ClearSelectionBCommand => new RelayCommand(ClearSelectionB);
 
 		private string _status = "Ready.";
 		public string Status
@@ -2920,11 +3203,11 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
-		// ✅ Extracted, explicit selection pipeline
+		
 		private async System.Threading.Tasks.Task<(int matched, int unmatched)> ExecuteSelectionTransferAsync()
 		{
-			var table = BuildSelectionADataTable();
-			var lookup = BuildSelectionLookup(GeometrySelectionService.SelectionB);
+			var table = BuildSelectionDataTable(CollectionA);
+			var lookup = BuildSelectionLookup(CollectionB);
 
 			var dataSource = new InMemoryDataSource(table);
 
@@ -2957,7 +3240,6 @@ namespace NavisLegacyPlugin.ViewModels
 				progressConfig);
 		}
 
-		// ✅ Consolidated GUID lookup helper
 		private Dictionary<string, ModelItem> BuildSelectionLookup(ModelItemCollection selection)
 		{
 			return selection
@@ -2968,7 +3250,16 @@ namespace NavisLegacyPlugin.ViewModels
 					StringComparer.OrdinalIgnoreCase);
 		}
 
-		// ✅ Existing CSV / Synchro path — unchanged
+		private Dictionary<string, ModelItem> BuildSelectionLookup(IEnumerable<ModelItem> items)
+		{
+			return items
+				.ToDictionary(
+					item => item.InstanceGuid.ToString("D"),
+					item => item,
+					StringComparer.OrdinalIgnoreCase);
+		}
+
+
 		private async void GetSynchroData()
 		{
 			try
@@ -3014,8 +3305,6 @@ namespace NavisLegacyPlugin.ViewModels
 					"3DUF:RID"
 				);
 
-				ProgressPercent = 35;
-
 				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
 					() => { },
 					System.Windows.Threading.DispatcherPriority.Background);
@@ -3047,13 +3336,45 @@ namespace NavisLegacyPlugin.ViewModels
 			UpdateTransferState();
 		}
 
+		public void CaptureSelectionA()
+		{
+			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
+			CollectionA = selection.Cast<ModelItem>().ToList();
+			OnPropertyChanged(nameof(CollectionACount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ClearSelectionA()
+		{
+			CollectionA.Clear();
+			OnPropertyChanged(nameof(CollectionACount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void CaptureSelectionB()
+		{
+			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
+			CollectionB = selection.Cast<ModelItem>().ToList();
+			OnPropertyChanged(nameof(CollectionBCount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ClearSelectionB()
+		{
+			CollectionB.Clear();
+			OnPropertyChanged(nameof(CollectionBCount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+
 		private void UpdateTransferState()
 		{
-			var hasA = GeometrySelectionService.SelectionA != null
-					   && GeometrySelectionService.SelectionA.Count > 0;
-
-			var hasB = GeometrySelectionService.SelectionB != null
-					   && GeometrySelectionService.SelectionB.Count > 0;
+			var hasA = CollectionA != null && CollectionA.Count > 0;
+			var hasB = CollectionB != null && CollectionB.Count > 0;
 
 			CanTransferRid = hasA && hasB;
 		}
@@ -3068,6 +3389,32 @@ namespace NavisLegacyPlugin.ViewModels
 			var selectionA = GeometrySelectionService.SelectionA;
 
 			foreach (ModelItem item in selectionA)
+			{
+				var row = table.NewRow();
+
+				row["InstanceGuid"] = item.InstanceGuid.ToString("D");
+
+				var prop = item.PropertyCategories
+					.FindCategoryByDisplayName("MAE-4D")?
+					.Properties
+					.FindPropertyByDisplayName("RID");
+
+				row["MAE-4D.RID"] = prop?.Value?.ToDisplayString() ?? "";
+
+				table.Rows.Add(row);
+			}
+
+			return table;
+		}
+
+		private DataTable BuildSelectionDataTable(IEnumerable<ModelItem> items)
+		{
+			var table = new DataTable();
+
+			table.Columns.Add("InstanceGuid", typeof(string));
+			table.Columns.Add("MAE-4D.RID", typeof(string));
+
+			foreach (var item in items)
 			{
 				var row = table.NewRow();
 

@@ -29,9 +29,22 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
+		public List<ModelItem> CollectionA { get; private set; } = new List<ModelItem>();
+		public List<ModelItem> CollectionB { get; private set; } = new List<ModelItem>();
+
+		public int CollectionACount => CollectionA.Count;
+		public int CollectionBCount => CollectionB.Count;
+
 		public ICommand WriteTestCommand { get; }
 		public ICommand GetSynchroDataCommand { get; }
 		public ICommand TransferRidCommand { get; }
+
+		public ICommand CaptureSelectionACommand => new RelayCommand(CaptureSelectionA);
+		public ICommand ClearSelectionACommand => new RelayCommand(ClearSelectionA);
+		public ICommand ShowSelectionACommand => new RelayCommand(ShowSelectionA);
+		public ICommand CaptureSelectionBCommand => new RelayCommand(CaptureSelectionB);
+		public ICommand ClearSelectionBCommand => new RelayCommand(ClearSelectionB);
+		public ICommand ShowSelectionBCommand => new RelayCommand(ShowSelectionB);
 
 		private string _status = "Ready.";
 		public string Status
@@ -68,8 +81,31 @@ namespace NavisLegacyPlugin.ViewModels
 			set { _writeMode = value; OnPropertyChanged(); }
 		}
 
+		public enum ModelDepthOption
+		{
+			All,
+			Branch
+		}
+
+		private ModelDepthOption _modelDepth = ModelDepthOption.Branch;
+		public ModelDepthOption ModelDepth
+		{
+			get => _modelDepth;
+			set { _modelDepth = value; OnPropertyChanged(); }
+		}
+
+		private bool _overwrite = false; // false = skip
+		public bool Overwrite
+		{
+			get => _overwrite;
+			set { _overwrite = value; OnPropertyChanged(); }
+		}
+
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
+			ModelDepth = ModelDepthOption.Branch;
+			// Overwrite = true;
+
 			_writer = writer;
 			_paintingService = new DataPaintingService(_modelLookupService, _writer);
 
@@ -114,11 +150,35 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
-		// ✅ Extracted, explicit selection pipeline
+		
 		private async System.Threading.Tasks.Task<(int matched, int unmatched)> ExecuteSelectionTransferAsync()
 		{
-			var table = BuildSelectionADataTable();
-			var lookup = BuildSelectionLookup(GeometrySelectionService.SelectionB);
+
+			var table = BuildSelectionDataTable(CollectionA);
+
+			int rawCount = table.Rows.Count;
+
+			// DEBUGGING [C] filter out rows with no RID
+			//
+			for (int i = table.Rows.Count - 1; i >= 0; i--)
+			{
+				var guid = table.Rows[i]["InstanceGuid"]?.ToString();
+				var rid = table.Rows[i]["MAE-4D.RID"]?.ToString();
+
+				if (string.IsNullOrWhiteSpace(rid))
+				{
+					Debug.WriteLine($"[DEBUG] DROP A: GUID={guid} RID='{rid}'");
+					table.Rows.RemoveAt(i);
+				}
+			}
+			int filteredCount = table.Rows.Count;
+
+			Debug.WriteLine($"[DEBUG] SelectionA raw = {rawCount}");
+			Debug.WriteLine($"[DEBUG] SelectionA filtered = {filteredCount}");
+			//
+			// DEBUGGING [C]
+
+			var lookup = BuildSelectionLookup(CollectionB);
 
 			var dataSource = new InMemoryDataSource(table);
 
@@ -134,7 +194,13 @@ namespace NavisLegacyPlugin.ViewModels
 
 			var writeConfig = new WriteConfig
 			{
-				WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+				WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase),
+
+				//
+				//
+				// Overwrite = true
+				// 
+				//
 			};
 
 			var progressConfig = new ProgressConfig
@@ -151,7 +217,6 @@ namespace NavisLegacyPlugin.ViewModels
 				progressConfig);
 		}
 
-		// ✅ Consolidated GUID lookup helper
 		private Dictionary<string, ModelItem> BuildSelectionLookup(ModelItemCollection selection)
 		{
 			return selection
@@ -162,7 +227,38 @@ namespace NavisLegacyPlugin.ViewModels
 					StringComparer.OrdinalIgnoreCase);
 		}
 
-		// ✅ Existing CSV / Synchro path — unchanged
+		private Dictionary<string, ModelItem> BuildSelectionLookup(IEnumerable<ModelItem> items)
+		{
+			// DEBUGGING [C]: Check for duplicate GUIDs in the input collection
+			//
+			var groups = items
+				.GroupBy(i => i.InstanceGuid.ToString("D"))
+				.ToList();
+
+			var duplicates = groups.Where(g => g.Count() > 1).ToList();
+
+			Debug.WriteLine("=========================================");
+			Debug.WriteLine($"[DEBUG] Lookup Input Count = {items.Count()}");
+			Debug.WriteLine($"[DEBUG] Unique GUIDs = {groups.Count}");
+			Debug.WriteLine($"[DEBUG] Duplicate GUID groups = {duplicates.Count}");
+
+			foreach (var g in duplicates.Take(10)) // limit spam
+			{
+				Debug.WriteLine($"[DEBUG] DUP GUID: {g.Key} count={g.Count()}");
+			}
+			Debug.WriteLine("=========================================");           
+			//
+			//
+
+			return items
+				.GroupBy(item => item.InstanceGuid.ToString("D"))
+				.ToDictionary(
+					g => g.Key,
+					g => g.First(),
+					StringComparer.OrdinalIgnoreCase);
+		}
+
+
 		private async void GetSynchroData()
 		{
 			try
@@ -192,7 +288,8 @@ namespace NavisLegacyPlugin.ViewModels
 
 				var writeConfig = new WriteConfig
 				{
-					WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+					//WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+					Overwrite = Overwrite
 				};
 
 				var progressConfig = new ProgressConfig
@@ -239,13 +336,75 @@ namespace NavisLegacyPlugin.ViewModels
 			UpdateTransferState();
 		}
 
+		public void CaptureSelectionA()
+		{
+			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
+			CollectionA = selection
+				.Cast<ModelItem>()
+				.SelectMany(item => ResolveByDepth(item))
+				.Distinct()
+				.ToList();
+			OnPropertyChanged(nameof(CollectionACount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ClearSelectionA()
+		{
+			CollectionA.Clear();
+			OnPropertyChanged(nameof(CollectionACount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ShowSelectionA()
+		{
+			var doc = Application.ActiveDocument;
+			if (doc == null) return;
+			doc.CurrentSelection.Clear();
+			foreach (var item in CollectionA)
+			{
+				doc.CurrentSelection.Add(item);
+			}
+		}
+
+		public void CaptureSelectionB()
+		{
+			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
+			CollectionB = selection
+				.Cast<ModelItem>()
+				.SelectMany(item => ResolveByDepth(item))
+				.Distinct()
+				.ToList();
+			OnPropertyChanged(nameof(CollectionBCount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ClearSelectionB()
+		{
+			CollectionB.Clear();
+			OnPropertyChanged(nameof(CollectionBCount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ShowSelectionB()
+		{
+			var doc = Application.ActiveDocument;
+			if (doc == null) return;
+			doc.CurrentSelection.Clear();
+			foreach (var item in CollectionB)
+			{
+				doc.CurrentSelection.Add(item);
+			}
+		}
+
+
 		private void UpdateTransferState()
 		{
-			var hasA = GeometrySelectionService.SelectionA != null
-					   && GeometrySelectionService.SelectionA.Count > 0;
-
-			var hasB = GeometrySelectionService.SelectionB != null
-					   && GeometrySelectionService.SelectionB.Count > 0;
+			var hasA = CollectionA != null && CollectionA.Count > 0;
+			var hasB = CollectionB != null && CollectionB.Count > 0;
 
 			CanTransferRid = hasA && hasB;
 		}
@@ -276,6 +435,79 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 
 			return table;
+		}
+
+		private DataTable BuildSelectionDataTable(IEnumerable<ModelItem> items)
+		{
+			var table = new DataTable();
+
+			table.Columns.Add("InstanceGuid", typeof(string));
+			table.Columns.Add("MAE-4D.RID", typeof(string));
+
+			foreach (var item in items)
+			{
+				var row = table.NewRow();
+
+				row["InstanceGuid"] = item.InstanceGuid.ToString("D");
+
+				var prop = item.PropertyCategories
+					.FindCategoryByDisplayName("MAE-4D")?
+					.Properties
+					.FindPropertyByDisplayName("RID");
+
+				row["MAE-4D.RID"] = prop?.Value?.ToDisplayString() ?? "";
+
+				table.Rows.Add(row);
+			}
+
+			return table;
+		}
+
+		private IEnumerable<ModelItem> ResolveByDepth(ModelItem item)
+		{
+			var results = new List<ModelItem>();
+
+			switch (ModelDepth)
+			{
+				case ModelDepthOption.All:
+					CollectAllItems(item, results);
+					break;
+
+				case ModelDepthOption.Branch:
+					CollectBranchItems(item, results);
+					break;
+			}
+
+			return results;
+		}
+
+		private void CollectAllItems(ModelItem item, List<ModelItem> results)
+		{
+			if (item == null) return;
+
+			if (!results.Contains(item))
+				results.Add(item);
+
+			if (item.Children != null)
+			{
+				foreach (var child in item.Children)
+					CollectAllItems(child, results);
+			}
+		}
+
+		private void CollectBranchItems(ModelItem item, List<ModelItem> results)
+		{
+			if (item == null) return;
+
+			// include item if it has children (root/branch/sub-branch)
+			if (item.Children != null && item.Children.Any())
+			{
+				if (!results.Contains(item))
+					results.Add(item);
+
+				foreach (var child in item.Children)
+					CollectBranchItems(child, results);
+			}
 		}
 
 	}

@@ -1,6 +1,6 @@
 ﻿SOLUTION CODE DUMP
 Root Folder: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin
-Generated: 2026-06-15 10:22:49
+Generated: 2026-06-26 16:54:59
 ====================================================================================================
 
 ===== TREE =====
@@ -12,6 +12,7 @@ Generated: 2026-06-15 10:22:49
         - GenerateMaeGuidsCommand.cs
     + Converters
         - DoubleFormatConverter.cs
+        - EnumToBooleanConverter.cs
         - EqualsConverter.cs
         - InverseBooleanConverter.cs
     + EntryPoint
@@ -41,6 +42,12 @@ Generated: 2026-06-15 10:22:49
         - NavisSelectionDataSource.cs
         - NavisworksContextService.cs
         - WindowService.cs
+        + Lookups
+            - DictionaryLookupProvider.cs
+            - ILookupProvider.cs
+        + Mappers
+            - IMappingStrategy.cs
+            - MappingConfigStrategy.cs
     + UI
         - DataPaintingTab.xaml
         - DataPaintingTab.xaml.cs
@@ -263,6 +270,34 @@ namespace NavisLegacyPlugin.Converters
 
 
 ====================================================================================================
+FILE: Converters || EnumToBooleanConverter.cs
+FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\Converters\EnumToBooleanConverter.cs
+====================================================================================================
+using System;
+using System.Globalization;
+using System.Windows.Data;
+
+namespace NavisLegacyPlugin.Converters
+{
+	public class EnumToBooleanConverter : IValueConverter
+	{
+		public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+		{
+			return value?.ToString() == parameter?.ToString();
+		}
+
+		public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+		{
+			if ((bool)value)
+				return Enum.Parse(targetType, parameter.ToString());
+
+			return Binding.DoNothing;
+		}
+	}
+}
+
+
+====================================================================================================
 FILE: Converters || EqualsConverter.cs
 FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\Converters\EqualsConverter.cs
 ====================================================================================================
@@ -317,18 +352,12 @@ namespace NavisLegacyPlugin.Converters
 	{
 		public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
 		{
-			if (value is bool b)
-				return !b;
-
-			return true;
+			return !(value is bool b && b);
 		}
 
 		public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
 		{
-			if (value is bool b)
-				return !b;
-
-			return Binding.DoNothing;
+			return !(value is bool b && b);
 		}
 	}
 }
@@ -571,6 +600,7 @@ namespace NavisLegacyPlugin.Models
 
 	public class WriteConfig
 	{
+		public bool Overwrite { get; set; } = false;
 		public bool WriteToLeafItems { get; set; }
 	}
 
@@ -1283,11 +1313,14 @@ FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\S
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Services.Lookups;
+using NavisLegacyPlugin.Services.Mappers;
 
 namespace NavisLegacyPlugin.Services
 {
@@ -1316,6 +1349,8 @@ namespace NavisLegacyPlugin.Services
 			int matched = 0;
 			int unmatched = 0;
 
+
+
 			var lookupDict = await _lookupService.GetOrBuildLookupAsync(
 				lookup.LookupTab,
 				lookup.LookupProperty,
@@ -1329,11 +1364,21 @@ namespace NavisLegacyPlugin.Services
 
 			var table = await dataSource.GetDataAsync(progress.ProgressText);
 
+			progress.ProgressText?.Report("Processing data...");
+			progress.ProgressPercent?.Report(35);
+
 			var itemWriteMap =
 				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
+			int totalRows = table.Rows.Count;
+			int rowIndex = 0;
+
+			progress.ProgressText?.Report("Grouping data...");
+
 			foreach (DataRow row in table.Rows)
 			{
+				rowIndex++;
+
 				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
 				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
 
@@ -1365,10 +1410,28 @@ namespace NavisLegacyPlugin.Services
 					foreach (var kvp in tab.Value)
 						propDict[kvp.Key] = kvp.Value;
 				}
+
+				if (rowIndex % 50 == 0) // lower than 50 for responsiveness
+				{
+					int percent = 35 + (rowIndex * 30 / totalRows);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			int totalItems = itemWriteMap.Count;
+			int writeIndex = 0;
+
+			progress.ProgressText?.Report("Writing data...");
 
 			foreach (var entry in itemWriteMap)
 			{
+				writeIndex++;
+
 				if (writeConfig.WriteToLeafItems)
 				{
 					var leafItems = new List<ModelItem>();
@@ -1383,7 +1446,21 @@ namespace NavisLegacyPlugin.Services
 					foreach (var tab in entry.Value)
 						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
 				}
+
+				if (writeIndex % 200 == 0)
+				{
+					int percent = 65 + (writeIndex * 35 / totalItems);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+				}
 			}
+
+			progress.ProgressPercent?.Report(100);
+			progress.ProgressText?.Report("Complete.");
 
 			return (matched, unmatched);
 		}
@@ -1397,27 +1474,85 @@ namespace NavisLegacyPlugin.Services
 		{
 			System.Diagnostics.Debug.WriteLine(">>> USING GUID LOOKUP PATH <<<");
 
+
+
+
+			// wrap existing lookup in provider
+			var lookupProvider = new DictionaryLookupProvider(lookup);
+
+			// build lookup through provider (no behaviour change)
+			var lookupDict = await lookupProvider.BuildLookupAsync(progress);
+
+			// ==========================
+			// DEBUG: confirm lookup size
+			//System.Diagnostics.Debug.WriteLine($"[STEP A] Lookup count: {lookupDict.Count}");
+			// ==========================
+
 			int matched = 0;
 			int unmatched = 0;
+			int written = 0;
+			int skipped = 0;
 
 			var table = await dataSource.GetDataAsync(progress.ProgressText);
 
 			var itemWriteMap =
 				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
 
+			int totalRows = table.Rows.Count;
+			int rowIndex = 0;
+
+			progress.ProgressText?.Report("Grouping data...");
+
+			var mappingStrategy = new MappingConfigStrategy(mapping);
+
+			// ==========================
+			// DEBUG
+			System.Diagnostics.Debug.WriteLine("[STEP B] MappingStrategy initialised");
+			// ==========================
+
 			foreach (DataRow row in table.Rows)
 			{
-				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
-				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
+				rowIndex++;
+				
+				var instruction = mappingStrategy.Map(row);
+
+				// ==========================
+				// DEBUG
+				//System.Diagnostics.Debug.WriteLine($"[STEP A] MatchValue: {instruction?.MatchValue}");
+				System.Diagnostics.Debug.WriteLine($"[STEP B] MatchValue: {instruction?.MatchValue}");
+				if (instruction == null)
+				{
+					System.Diagnostics.Debug.WriteLine("[STEP B] NULL instruction");
+				}
+				foreach (var tab in instruction.PropertiesByTab)
+				{
+					foreach (var prop in tab.Value)
+					{
+						System.Diagnostics.Debug.WriteLine(
+							$"[STEP B] WRITE VALUE → {tab.Key}.{prop.Key} = '{prop.Value}'");
+					}
+				}
+				// ==========================
 
 				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
 					continue;
 
-				if (!lookup.TryGetValue(instruction.MatchValue, out var item))
+
+				// DEBUGGING [C]
+				//
+				Debug.WriteLine($"[DEBUG] TRY MATCH GUID = {instruction.MatchValue}");
+
+				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
 				{
+					Debug.WriteLine($"[DEBUG] LOOKUP FAIL: {instruction.MatchValue}");
 					unmatched++;
 					continue;
 				}
+
+				Debug.WriteLine($"[DEBUG] LOOKUP HIT: {instruction.MatchValue} → {item.DisplayName}");
+				//
+				// DEBUGGING [C]
+
 
 				matched++;
 
@@ -1438,25 +1573,106 @@ namespace NavisLegacyPlugin.Services
 					foreach (var kvp in tab.Value)
 						propDict[kvp.Key] = kvp.Value;
 				}
+
+				if (rowIndex % 50 == 0) // throttle
+				{
+					int percent = 35 + (rowIndex * 30 / totalRows);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+				}
+
 			}
+
+			int totalItems = itemWriteMap.Count;
+			int writeIndex = 0;
+
+			progress.ProgressText?.Report("Writing data...");
 
 			foreach (var entry in itemWriteMap)
 			{
-				if (writeConfig.WriteToLeafItems)
+				writeIndex++;
+				
+				foreach (var tab in entry.Value)
 				{
-					var leafItems = new List<ModelItem>();
-					CollectLeafItems(entry.Key, leafItems);
+					foreach (var prop in tab.Value)
+					{
+						var categoryName = tab.Key;   // "MAE-4D"
+						var propName = prop.Key;      // "RID"
+						var propValue = prop.Value;
 
-					foreach (var leaf in leafItems)
-						foreach (var tab in entry.Value)
-							_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
+						var category = entry.Key.PropertyCategories
+							.FindCategoryByDisplayName(categoryName);
+
+						var existingProp = category?
+							.Properties
+							.FindPropertyByDisplayName(propName);
+
+						if (existingProp != null)
+						{
+							var existingValue = existingProp.Value?.ToDisplayString();
+
+							if (!writeConfig.Overwrite &&
+								!string.IsNullOrWhiteSpace(existingValue))
+							{
+
+								// DEBUGGING [C]
+								//
+								Debug.WriteLine(
+									$"[DEBUG] SKIP → TARGET={entry.Key.DisplayName} PROP={categoryName}.{propName}");
+								//
+								// DEBUGGING [C]
+
+								skipped++;
+								continue;
+							}
+						}
+
+						// DEBUGGING [C]
+						//
+						Debug.WriteLine(
+							$"[DEBUG] WRITE → TARGET={entry.Key.DisplayName} PROP={categoryName}.{propName} VALUE='{propValue}'");
+						//
+						// DEBUGGING [C]
+
+
+						_writer.WriteUserDefinedProperties(
+							entry.Key,
+							categoryName,
+							new Dictionary<string, string>
+							{
+								{ propName, propValue }
+							});
+
+						written++;
+					}
 				}
-				else
+
+
+				if (writeIndex % 10 == 0)
 				{
-					foreach (var tab in entry.Value)
-						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+					int percent = 65 + (writeIndex * 35 / totalItems);
+					progress.ProgressPercent?.Report(percent);
+					progress.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
+
+					await System.Windows.Application.Current.Dispatcher
+						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
 				}
+
 			}
+
+			progress.ProgressPercent?.Report(100);
+			progress.ProgressText?.Report("Complete.");
+
+			// ==========================
+			// DEBUG
+			System.Diagnostics.Debug.WriteLine($"[STEP A] RESULT → Matched: {matched}, Unmatched: {unmatched}");
+
+			System.Diagnostics.Debug.WriteLine($"[STEP B] RESULT → Written: {written}, Skipped: {skipped}");
+
+			// ==========================
 
 			return (matched, unmatched);
 		}
@@ -2287,6 +2503,103 @@ namespace NavisLegacyPlugin
 
 
 ====================================================================================================
+FILE: Services\Lookups || DictionaryLookupProvider.cs
+FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\Services\Lookups\DictionaryLookupProvider.cs
+====================================================================================================
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Autodesk.Navisworks.Api;
+using NavisLegacyPlugin.Models;
+
+namespace NavisLegacyPlugin.Services.Lookups
+{
+	public class DictionaryLookupProvider : ILookupProvider
+	{
+		private readonly Dictionary<string, ModelItem> _lookup;
+
+		public DictionaryLookupProvider(Dictionary<string, ModelItem> lookup)
+		{
+			_lookup = lookup;
+		}
+
+		public Task<Dictionary<string, ModelItem>> BuildLookupAsync(ProgressConfig progress)
+		{
+			return Task.FromResult(_lookup);
+		}
+	}
+}
+
+
+====================================================================================================
+FILE: Services\Lookups || ILookupProvider.cs
+FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\Services\Lookups\ILookupProvider.cs
+====================================================================================================
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Autodesk.Navisworks.Api;
+using NavisLegacyPlugin.Models;
+
+namespace NavisLegacyPlugin.Services.Lookups
+{
+	public interface ILookupProvider
+	{
+		Task<Dictionary<string, ModelItem>> BuildLookupAsync(ProgressConfig progress);
+	}
+}
+
+
+====================================================================================================
+FILE: Services\Mappers || IMappingStrategy.cs
+FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\Services\Mappers\IMappingStrategy.cs
+====================================================================================================
+using System.Data;
+using NavisLegacyPlugin.Helpers;
+using NavisLegacyPlugin.Models;
+
+namespace NavisLegacyPlugin.Services.Mappers
+{
+	public interface IMappingStrategy
+	{
+		PaintInstruction Map(DataRow row);
+	}
+}
+
+
+====================================================================================================
+FILE: Services\Mappers || MappingConfigStrategy.cs
+FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\Services\Mappers\MappingConfigStrategy.cs
+====================================================================================================
+using System.Collections.Generic;
+using System.Data;
+using NavisLegacyPlugin.Helpers;
+using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Services;
+
+namespace NavisLegacyPlugin.Services.Mappers
+{
+	public class MappingConfigStrategy : IMappingStrategy
+	{
+		private readonly Dictionary<string, string> _columnMap;
+		private readonly string _matchColumn;
+
+		public MappingConfigStrategy(MappingConfig config)
+		{
+			_columnMap = config.ColumnMap;
+			_matchColumn = config.MatchColumn;
+		}
+
+		public PaintInstruction Map(DataRow row)
+		{
+			var mapped = PropertyMappingHelper.MapRow(row, _columnMap);
+			var instruction = PaintInstructionBuilder.Build(mapped, _matchColumn);
+
+			return instruction;
+		}
+	}
+}
+
+
+====================================================================================================
 FILE: UI || DataPaintingTab.xaml
 FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\UI\DataPaintingTab.xaml
 ====================================================================================================
@@ -2298,8 +2611,7 @@ FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\U
 			 DataContext="{Binding DataPainting}">
 
 	<UserControl.Resources>
-		<conv:DoubleFormatConverter x:Key="DoubleFormatConverter" />
-		<conv:EqualsConverter x:Key="EqualsConverter" />
+		<conv:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
 		<conv:InverseBooleanConverter x:Key="InverseBooleanConverter" />
 	</UserControl.Resources>
 
@@ -2307,8 +2619,10 @@ FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\U
 	<Grid Margin="10">
 
 		<Grid.RowDefinitions>
-			<RowDefinition Height="Auto"/>			<!-- Mode -->
-			<RowDefinition Height="Auto"/>			<!-- Write -->
+			<RowDefinition Height="Auto"/>			<!-- Model Depth -->
+			<RowDefinition Height="Auto"/>			<!-- Overwrite -->
+			<RowDefinition Height="Auto"/>			<!-- Get Model Collections -->
+			<RowDefinition Height="Auto"/>			<!-- Write Test -->
 			<RowDefinition Height="Auto"/>			<!-- GetData -->
 			<RowDefinition Height="Auto"/>			<!-- Transfer RID -->
 			<RowDefinition Height="Auto"/>			<!-- Progress bar -->
@@ -2316,44 +2630,98 @@ FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\U
 			<RowDefinition Height="Auto"/>			<!-- Status -->
 		</Grid.RowDefinitions>
 
-		<!-- Write Mode -->
-		<StackPanel Grid.Row="0"
-                Orientation="Horizontal"
-                Margin="0,0,0,10">
+		<!-- Model Depth -->
+		<GroupBox  Grid.Row="0" Header="Model Depth" Margin="5">
+			<StackPanel>
+				<RadioButton Content="Branch"
+                     IsChecked="{Binding ModelDepth, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}" />
 
-			<TextBlock Text="Write to:"
-                   VerticalAlignment="Center"
-                   Margin="0,0,10,0"/>
+				<RadioButton Content="All"
+                     IsChecked="{Binding ModelDepth, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}" />
+			</StackPanel>
+		</GroupBox>
 
+		<!-- Overwrite -->
+		<GroupBox Grid.Row="1" Header="Overwrite" Margin="5">
+			<StackPanel>
+				<RadioButton Content="Yes"
+                     IsChecked="{Binding Overwrite}" />
 
-			
-			<RadioButton Content="Branch"
-                     GroupName="WriteTarget"
-                     IsChecked="{Binding WriteMode, Converter={StaticResource EqualsConverter}, ConverterParameter=Branch}"
-                     Margin="0,0,10,0"/>
+				<RadioButton Content="Skip"
+                     IsChecked="{Binding Overwrite, Converter={StaticResource InverseBooleanConverter}}" />
+			</StackPanel>
+		</GroupBox>
 
-			<RadioButton Content="Leaf"
-                     GroupName="WriteTarget"
-                     IsChecked="{Binding WriteMode, Converter={StaticResource EqualsConverter}, ConverterParameter=Leaf}"/>
-			
+		<!-- Get Model Collections -->
+		<StackPanel Grid.Row="2" Orientation="Vertical" Margin="5">
+
+			<!-- ✅ COLLECTION A -->
+			<GroupBox Header="Collection A" Margin="5">
+				<StackPanel Orientation="Horizontal" Margin="5">
+					<Button Content="Capture Selection"
+						Width="120"
+						Margin="5"
+						Command="{Binding CaptureSelectionACommand}" />
+
+					<Button Content="Clear"
+						Width="80"
+						Margin="5"
+						Command="{Binding ClearSelectionACommand}" />
+
+					<Button Content="Show"
+						Width="70"
+						Margin="5"
+						Command="{Binding ShowSelectionACommand}" />
+
+					<TextBlock Margin="10,0,0,0"
+						VerticalAlignment="Center"
+						Text="{Binding CollectionACount, StringFormat='Items: {0}'}"/>
+				</StackPanel>
+			</GroupBox>
+
+			<!-- ✅ COLLECTION B -->
+			<GroupBox Header="Collection B" Margin="5">
+				<StackPanel Orientation="Horizontal" Margin="5">
+					<Button Content="Capture Selection"
+						Width="120"
+						Margin="5"
+						Command="{Binding CaptureSelectionBCommand}" />
+
+					<Button Content="Clear"
+						Width="80"
+						Margin="5"
+						Command="{Binding ClearSelectionBCommand}" />
+
+					<Button Content="Show"
+						Width="70"
+						Margin="5"
+						Command="{Binding ShowSelectionBCommand}" />
+
+					<TextBlock Margin="10,0,0,0"
+						VerticalAlignment="Center"
+						Text="{Binding CollectionBCount, StringFormat='Items: {0}'}"/>
+				</StackPanel>
+			</GroupBox>
+
 		</StackPanel>
 
-		<!-- Existing button -->
-		<Button Grid.Row="1"
+
+		<!-- Write Test -->
+		<Button Grid.Row="3"
             Content="Write Test Property"
             Width="160"
             Command="{Binding WriteTestCommand}"
 				IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
 
 		<!-- Get Synchro Data button -->
-		<Button Grid.Row="2"
+		<Button Grid.Row="4"
             Content="Get Synchro Data"
             Width="160"
             Margin="0,10,0,0"
             Command="{Binding GetSynchroDataCommand}"
 				IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
 
-		<Button Grid.Row="3"
+		<Button Grid.Row="5"
 			Content="Transfer RID A → B"
 			Width="160"
 			Margin="0,10,0,0"
@@ -2362,7 +2730,7 @@ FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\U
 		
 		
 		<!-- Progress bar -->
-		<ProgressBar Grid.Row="4"
+		<ProgressBar Grid.Row="6"
 				 Height="18"
 				 Margin="0,10,0,0"
 				 Minimum="0"
@@ -2370,12 +2738,12 @@ FULL PATH: C:\Users\tshepherd\source\repos\NavisLegacyPlugin\NavisLegacyPlugin\U
 				 Value="{Binding ProgressPercent}" />
 
 		<!-- Progress text -->
-		<TextBlock Grid.Row="5"
+		<TextBlock Grid.Row="7"
 			   Margin="0,6,0,0"
 			   Text="{Binding ProgressText}" />
 
 		<!-- Status -->
-		<TextBlock Grid.Row="6"
+		<TextBlock Grid.Row="8"
                Margin="0,10,0,0"
                Text="{Binding Status}" />
 
@@ -2835,9 +3203,22 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
+		public List<ModelItem> CollectionA { get; private set; } = new List<ModelItem>();
+		public List<ModelItem> CollectionB { get; private set; } = new List<ModelItem>();
+
+		public int CollectionACount => CollectionA.Count;
+		public int CollectionBCount => CollectionB.Count;
+
 		public ICommand WriteTestCommand { get; }
 		public ICommand GetSynchroDataCommand { get; }
 		public ICommand TransferRidCommand { get; }
+
+		public ICommand CaptureSelectionACommand => new RelayCommand(CaptureSelectionA);
+		public ICommand ClearSelectionACommand => new RelayCommand(ClearSelectionA);
+		public ICommand ShowSelectionACommand => new RelayCommand(ShowSelectionA);
+		public ICommand CaptureSelectionBCommand => new RelayCommand(CaptureSelectionB);
+		public ICommand ClearSelectionBCommand => new RelayCommand(ClearSelectionB);
+		public ICommand ShowSelectionBCommand => new RelayCommand(ShowSelectionB);
 
 		private string _status = "Ready.";
 		public string Status
@@ -2874,8 +3255,31 @@ namespace NavisLegacyPlugin.ViewModels
 			set { _writeMode = value; OnPropertyChanged(); }
 		}
 
+		public enum ModelDepthOption
+		{
+			All,
+			Branch
+		}
+
+		private ModelDepthOption _modelDepth = ModelDepthOption.Branch;
+		public ModelDepthOption ModelDepth
+		{
+			get => _modelDepth;
+			set { _modelDepth = value; OnPropertyChanged(); }
+		}
+
+		private bool _overwrite = false; // false = skip
+		public bool Overwrite
+		{
+			get => _overwrite;
+			set { _overwrite = value; OnPropertyChanged(); }
+		}
+
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
+			ModelDepth = ModelDepthOption.Branch;
+			Overwrite = true;
+
 			_writer = writer;
 			_paintingService = new DataPaintingService(_modelLookupService, _writer);
 
@@ -2920,11 +3324,35 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
-		// ✅ Extracted, explicit selection pipeline
+		
 		private async System.Threading.Tasks.Task<(int matched, int unmatched)> ExecuteSelectionTransferAsync()
 		{
-			var table = BuildSelectionADataTable();
-			var lookup = BuildSelectionLookup(GeometrySelectionService.SelectionB);
+
+			var table = BuildSelectionDataTable(CollectionA);
+
+			int rawCount = table.Rows.Count;
+
+			// DEBUGGING [C] filter out rows with no RID
+			//
+			for (int i = table.Rows.Count - 1; i >= 0; i--)
+			{
+				var guid = table.Rows[i]["InstanceGuid"]?.ToString();
+				var rid = table.Rows[i]["MAE-4D.RID"]?.ToString();
+
+				if (string.IsNullOrWhiteSpace(rid))
+				{
+					Debug.WriteLine($"[DEBUG] DROP A: GUID={guid} RID='{rid}'");
+					table.Rows.RemoveAt(i);
+				}
+			}
+			int filteredCount = table.Rows.Count;
+
+			Debug.WriteLine($"[DEBUG] SelectionA raw = {rawCount}");
+			Debug.WriteLine($"[DEBUG] SelectionA filtered = {filteredCount}");
+			//
+			// DEBUGGING [C]
+
+			var lookup = BuildSelectionLookup(CollectionB);
 
 			var dataSource = new InMemoryDataSource(table);
 
@@ -2940,7 +3368,13 @@ namespace NavisLegacyPlugin.ViewModels
 
 			var writeConfig = new WriteConfig
 			{
-				WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+				WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase),
+
+				//
+				//
+				Overwrite = true
+				// 
+				//
 			};
 
 			var progressConfig = new ProgressConfig
@@ -2957,7 +3391,6 @@ namespace NavisLegacyPlugin.ViewModels
 				progressConfig);
 		}
 
-		// ✅ Consolidated GUID lookup helper
 		private Dictionary<string, ModelItem> BuildSelectionLookup(ModelItemCollection selection)
 		{
 			return selection
@@ -2968,24 +3401,184 @@ namespace NavisLegacyPlugin.ViewModels
 					StringComparer.OrdinalIgnoreCase);
 		}
 
-		// ✅ Existing CSV / Synchro path — unchanged
+		private Dictionary<string, ModelItem> BuildSelectionLookup(IEnumerable<ModelItem> items)
+		{
+			// DEBUGGING [C]: Check for duplicate GUIDs in the input collection
+			//
+			var groups = items
+				.GroupBy(i => i.InstanceGuid.ToString("D"))
+				.ToList();
+
+			var duplicates = groups.Where(g => g.Count() > 1).ToList();
+
+			Debug.WriteLine("=========================================");
+			Debug.WriteLine($"[DEBUG] Lookup Input Count = {items.Count()}");
+			Debug.WriteLine($"[DEBUG] Unique GUIDs = {groups.Count}");
+			Debug.WriteLine($"[DEBUG] Duplicate GUID groups = {duplicates.Count}");
+
+			foreach (var g in duplicates.Take(10)) // limit spam
+			{
+				Debug.WriteLine($"[DEBUG] DUP GUID: {g.Key} count={g.Count()}");
+			}
+			Debug.WriteLine("=========================================");           
+			//
+			//
+
+			return items
+				.GroupBy(item => item.InstanceGuid.ToString("D"))
+				.ToDictionary(
+					g => g.Key,
+					g => g.First(),
+					StringComparer.OrdinalIgnoreCase);
+		}
+
+
 		private async void GetSynchroData()
 		{
-			// existing implementation preserved
+			try
+			{
+				IsBusy = true;
+				ProgressText = "Reading CSV...";
+
+				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => { },
+					System.Windows.Threading.DispatcherPriority.Background);
+
+				var mapping = new MappingConfig
+				{
+					ColumnMap = new Dictionary<string, string>
+					{
+						{ "3DUF:Synchro_SynchroID", "Synchro.SynchroID" },
+						{ "3DUF:RID", "MAE-4D.RID" }
+					},
+					MatchColumn = "Synchro.SynchroID"
+				};
+
+				var lookupConfig = new LookupConfig
+				{
+					LookupTab = "Synchro",
+					LookupProperty = "SynchroID"
+				};
+
+				var writeConfig = new WriteConfig
+				{
+					//WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+					Overwrite = Overwrite
+				};
+
+				var progressConfig = new ProgressConfig
+				{
+					ProgressText = new Progress<string>(t => ProgressText = t),
+					ProgressPercent = new Progress<int>(p => ProgressPercent = p)
+				};
+
+				var dataSource = new CsvDataSource(
+					_csvService,
+					@"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\data.csv",
+					2,
+					"3DUF:RID"
+				);
+
+				await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => { },
+					System.Windows.Threading.DispatcherPriority.Background);
+
+
+				var result = await _paintingService.ExecuteAsync(
+					dataSource,
+					mapping,
+					lookupConfig,
+					writeConfig,
+					progressConfig
+				);
+
+				Status = $"Complete. Matched: {result.matched}, Unmatched: {result.unmatched}";
+			}
+			catch (Exception ex)
+			{
+				Status = "Failed: " + ex.Message;
+			}
+			finally
+			{
+				IsBusy = false;
+			}
 		}
+
 
 		private void OnSelectionChanged()
 		{
 			UpdateTransferState();
 		}
 
+		public void CaptureSelectionA()
+		{
+			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
+			CollectionA = selection
+				.Cast<ModelItem>()
+				.SelectMany(item => ResolveByDepth(item))
+				.Distinct()
+				.ToList();
+			OnPropertyChanged(nameof(CollectionACount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ClearSelectionA()
+		{
+			CollectionA.Clear();
+			OnPropertyChanged(nameof(CollectionACount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ShowSelectionA()
+		{
+			var doc = Application.ActiveDocument;
+			if (doc == null) return;
+			doc.CurrentSelection.Clear();
+			foreach (var item in CollectionA)
+			{
+				doc.CurrentSelection.Add(item);
+			}
+		}
+
+		public void CaptureSelectionB()
+		{
+			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
+			CollectionB = selection
+				.Cast<ModelItem>()
+				.SelectMany(item => ResolveByDepth(item))
+				.Distinct()
+				.ToList();
+			OnPropertyChanged(nameof(CollectionBCount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ClearSelectionB()
+		{
+			CollectionB.Clear();
+			OnPropertyChanged(nameof(CollectionBCount));
+			UpdateTransferState();
+			CommandManager.InvalidateRequerySuggested();
+		}
+
+		public void ShowSelectionB()
+		{
+			var doc = Application.ActiveDocument;
+			if (doc == null) return;
+			doc.CurrentSelection.Clear();
+			foreach (var item in CollectionB)
+			{
+				doc.CurrentSelection.Add(item);
+			}
+		}
+
+
 		private void UpdateTransferState()
 		{
-			var hasA = GeometrySelectionService.SelectionA != null
-					   && GeometrySelectionService.SelectionA.Count > 0;
-
-			var hasB = GeometrySelectionService.SelectionB != null
-					   && GeometrySelectionService.SelectionB.Count > 0;
+			var hasA = CollectionA != null && CollectionA.Count > 0;
+			var hasB = CollectionB != null && CollectionB.Count > 0;
 
 			CanTransferRid = hasA && hasB;
 		}
@@ -3016,6 +3609,79 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 
 			return table;
+		}
+
+		private DataTable BuildSelectionDataTable(IEnumerable<ModelItem> items)
+		{
+			var table = new DataTable();
+
+			table.Columns.Add("InstanceGuid", typeof(string));
+			table.Columns.Add("MAE-4D.RID", typeof(string));
+
+			foreach (var item in items)
+			{
+				var row = table.NewRow();
+
+				row["InstanceGuid"] = item.InstanceGuid.ToString("D");
+
+				var prop = item.PropertyCategories
+					.FindCategoryByDisplayName("MAE-4D")?
+					.Properties
+					.FindPropertyByDisplayName("RID");
+
+				row["MAE-4D.RID"] = prop?.Value?.ToDisplayString() ?? "";
+
+				table.Rows.Add(row);
+			}
+
+			return table;
+		}
+
+		private IEnumerable<ModelItem> ResolveByDepth(ModelItem item)
+		{
+			var results = new List<ModelItem>();
+
+			switch (ModelDepth)
+			{
+				case ModelDepthOption.All:
+					CollectAllItems(item, results);
+					break;
+
+				case ModelDepthOption.Branch:
+					CollectBranchItems(item, results);
+					break;
+			}
+
+			return results;
+		}
+
+		private void CollectAllItems(ModelItem item, List<ModelItem> results)
+		{
+			if (item == null) return;
+
+			if (!results.Contains(item))
+				results.Add(item);
+
+			if (item.Children != null)
+			{
+				foreach (var child in item.Children)
+					CollectAllItems(child, results);
+			}
+		}
+
+		private void CollectBranchItems(ModelItem item, List<ModelItem> results)
+		{
+			if (item == null) return;
+
+			// include item if it has children (root/branch/sub-branch)
+			if (item.Children != null && item.Children.Any())
+			{
+				if (!results.Contains(item))
+					results.Add(item);
+
+				foreach (var child in item.Children)
+					CollectBranchItems(child, results);
+			}
 		}
 
 	}
