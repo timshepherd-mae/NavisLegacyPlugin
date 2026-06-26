@@ -6,8 +6,7 @@
 			 DataContext="{Binding DataPainting}">
 
 	<UserControl.Resources>
-		<conv:DoubleFormatConverter x:Key="DoubleFormatConverter" />
-		<conv:EqualsConverter x:Key="EqualsConverter" />
+		<conv:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
 		<conv:InverseBooleanConverter x:Key="InverseBooleanConverter" />
 	</UserControl.Resources>
 
@@ -15,7 +14,8 @@
 	<Grid Margin="10">
 
 		<Grid.RowDefinitions>
-			<RowDefinition Height="Auto"/>			<!-- Write Mode -->
+			<RowDefinition Height="Auto"/>			<!-- Model Depth -->
+			<RowDefinition Height="Auto"/>			<!-- Overwrite -->
 			<RowDefinition Height="Auto"/>			<!-- Get Model Collections -->
 			<RowDefinition Height="Auto"/>			<!-- Write Test -->
 			<RowDefinition Height="Auto"/>			<!-- GetData -->
@@ -25,31 +25,30 @@
 			<RowDefinition Height="Auto"/>			<!-- Status -->
 		</Grid.RowDefinitions>
 
-		<!-- Write Mode -->
-		<StackPanel Grid.Row="0"
-                Orientation="Horizontal"
-                Margin="0,0,0,10">
+		<!-- Model Depth -->
+		<GroupBox  Grid.Row="0" Header="Model Depth" Margin="5">
+			<StackPanel>
+				<RadioButton Content="Branch"
+                     IsChecked="{Binding ModelDepth, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}" />
 
-			<TextBlock Text="Write to:"
-                   VerticalAlignment="Center"
-                   Margin="0,0,10,0"/>
+				<RadioButton Content="All"
+                     IsChecked="{Binding ModelDepth, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}" />
+			</StackPanel>
+		</GroupBox>
 
+		<!-- Overwrite -->
+		<GroupBox Grid.Row="1" Header="Overwrite" Margin="5">
+			<StackPanel>
+				<RadioButton Content="Yes"
+                     IsChecked="{Binding Overwrite}" />
 
-			
-			<RadioButton Content="Branch"
-                     GroupName="WriteTarget"
-                     IsChecked="{Binding WriteMode, Converter={StaticResource EqualsConverter}, ConverterParameter=Branch}"
-                     Margin="0,0,10,0"/>
+				<RadioButton Content="Skip"
+                     IsChecked="{Binding Overwrite, Converter={StaticResource InverseBooleanConverter}}" />
+			</StackPanel>
+		</GroupBox>
 
-			<RadioButton Content="Leaf"
-                     GroupName="WriteTarget"
-                     IsChecked="{Binding WriteMode, Converter={StaticResource EqualsConverter}, ConverterParameter=Leaf}"/>
-			
-		</StackPanel>
-		
 		<!-- Get Model Collections -->
-
-		<StackPanel Grid.Row="1" Orientation="Vertical" Margin="5">
+		<StackPanel Grid.Row="2" Orientation="Vertical" Margin="5">
 
 			<!-- ✅ COLLECTION A -->
 			<GroupBox Header="Collection A" Margin="5">
@@ -103,21 +102,21 @@
 
 
 		<!-- Write Test -->
-		<Button Grid.Row="2"
+		<Button Grid.Row="3"
             Content="Write Test Property"
             Width="160"
             Command="{Binding WriteTestCommand}"
 				IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
 
 		<!-- Get Synchro Data button -->
-		<Button Grid.Row="3"
+		<Button Grid.Row="4"
             Content="Get Synchro Data"
             Width="160"
             Margin="0,10,0,0"
             Command="{Binding GetSynchroDataCommand}"
 				IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
 
-		<Button Grid.Row="4"
+		<Button Grid.Row="5"
 			Content="Transfer RID A → B"
 			Width="160"
 			Margin="0,10,0,0"
@@ -126,7 +125,7 @@
 		
 		
 		<!-- Progress bar -->
-		<ProgressBar Grid.Row="5"
+		<ProgressBar Grid.Row="6"
 				 Height="18"
 				 Margin="0,10,0,0"
 				 Minimum="0"
@@ -134,12 +133,12 @@
 				 Value="{Binding ProgressPercent}" />
 
 		<!-- Progress text -->
-		<TextBlock Grid.Row="6"
+		<TextBlock Grid.Row="7"
 			   Margin="0,6,0,0"
 			   Text="{Binding ProgressText}" />
 
 		<!-- Status -->
-		<TextBlock Grid.Row="7"
+		<TextBlock Grid.Row="8"
                Margin="0,10,0,0"
                Text="{Binding Status}" />
 

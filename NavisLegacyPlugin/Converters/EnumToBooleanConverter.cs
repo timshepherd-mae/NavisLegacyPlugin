@@ -4,16 +4,19 @@ using System.Windows.Data;
 
 namespace NavisLegacyPlugin.Converters
 {
-	public class InverseBooleanConverter : IValueConverter
+	public class EnumToBooleanConverter : IValueConverter
 	{
 		public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
 		{
-			return !(value is bool b && b);
+			return value?.ToString() == parameter?.ToString();
 		}
 
 		public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
 		{
-			return !(value is bool b && b);
+			if ((bool)value)
+				return Enum.Parse(targetType, parameter.ToString());
+
+			return Binding.DoNothing;
 		}
 	}
 }
