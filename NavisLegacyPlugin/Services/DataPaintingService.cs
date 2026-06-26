@@ -298,33 +298,25 @@ namespace NavisLegacyPlugin.Services
 							.Properties
 							.FindPropertyByDisplayName(propName);
 
-						if (existingProp != null)
+						Debug.WriteLine(
+							$"[DEBUG] EXIST CHECK → TARGET={entry.Key.DisplayName} PROP EXISTS={(existingProp != null)}");
+
+						// ✅ CLEAN SKIP LOGIC
+						if (!writeConfig.Overwrite)
 						{
-							var existingValue = existingProp.Value?.ToDisplayString();
-
-							if (!writeConfig.Overwrite &&
-								!string.IsNullOrWhiteSpace(existingValue))
+							if (existingProp != null)
 							{
-
-								// DEBUGGING [C]
-								//
 								Debug.WriteLine(
-									$"[DEBUG] SKIP → TARGET={entry.Key.DisplayName} PROP={categoryName}.{propName}");
-								//
-								// DEBUGGING [C]
+									$"[DEBUG] SKIP (PROP EXISTS) → TARGET={entry.Key.DisplayName}");
 
 								skipped++;
 								continue;
 							}
 						}
 
-						// DEBUGGING [C]
-						//
+						// ✅ WRITE
 						Debug.WriteLine(
 							$"[DEBUG] WRITE → TARGET={entry.Key.DisplayName} PROP={categoryName}.{propName} VALUE='{propValue}'");
-						//
-						// DEBUGGING [C]
-
 
 						_writer.WriteUserDefinedProperties(
 							entry.Key,

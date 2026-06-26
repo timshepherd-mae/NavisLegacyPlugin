@@ -104,7 +104,7 @@ namespace NavisLegacyPlugin.ViewModels
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
 			ModelDepth = ModelDepthOption.Branch;
-			Overwrite = true;
+			// Overwrite = true;
 
 			_writer = writer;
 			_paintingService = new DataPaintingService(_modelLookupService, _writer);
@@ -198,7 +198,7 @@ namespace NavisLegacyPlugin.ViewModels
 
 				//
 				//
-				Overwrite = true
+				// Overwrite = true
 				// 
 				//
 			};

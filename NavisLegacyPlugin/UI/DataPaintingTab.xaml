@@ -40,10 +40,10 @@
 		<GroupBox Grid.Row="1" Header="Overwrite" Margin="5">
 			<StackPanel>
 				<RadioButton Content="Yes"
-                     IsChecked="{Binding Overwrite}" />
+                     IsChecked="{Binding Overwrite, Mode=TwoWay}" />
 
 				<RadioButton Content="Skip"
-                     IsChecked="{Binding Overwrite, Converter={StaticResource InverseBooleanConverter}}" />
+                     IsChecked="{Binding Overwrite, Converter={StaticResource InverseBooleanConverter}, Mode=TwoWay}" />
 			</StackPanel>
 		</GroupBox>
 
