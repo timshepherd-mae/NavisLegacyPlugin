@@ -152,6 +152,24 @@ namespace NavisLegacyPlugin.ViewModels
 		{
 
 			var table = BuildSelectionDataTable(CollectionA);
+
+			int rawCount = table.Rows.Count;
+
+			// filter out rows with no RID
+			for (int i = table.Rows.Count - 1; i >= 0; i--)
+			{
+				var rid = table.Rows[i]["MAE-4D.RID"]?.ToString();
+
+				if (string.IsNullOrWhiteSpace(rid))
+					table.Rows.RemoveAt(i);
+			}
+
+			int filteredCount = table.Rows.Count;
+
+			Debug.WriteLine($"[DEBUG] SelectionA raw = {rawCount}");
+			Debug.WriteLine($"[DEBUG] SelectionA filtered = {filteredCount}");
+
+
 			var lookup = BuildSelectionLookup(CollectionB);
 
 			var dataSource = new InMemoryDataSource(table);
