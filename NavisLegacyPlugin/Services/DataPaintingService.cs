@@ -172,6 +172,8 @@ namespace NavisLegacyPlugin.Services
 
 			int matched = 0;
 			int unmatched = 0;
+			int written = 0;
+			int skipped = 0;
 
 			var table = await dataSource.GetDataAsync(progress.ProgressText);
 
@@ -264,20 +266,60 @@ namespace NavisLegacyPlugin.Services
 			{
 				writeIndex++;
 				
-				if (writeConfig.WriteToLeafItems)
-				{
-					var leafItems = new List<ModelItem>();
-					CollectLeafItems(entry.Key, leafItems);
+				//if (writeConfig.WriteToLeafItems)
+				//{
+				//	var leafItems = new List<ModelItem>();
+				//	CollectLeafItems(entry.Key, leafItems);
 
-					foreach (var leaf in leafItems)
-						foreach (var tab in entry.Value)
-							_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
-				}
-				else
+				//	foreach (var leaf in leafItems)
+				//		foreach (var tab in entry.Value)
+				//			_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
+				//}
+				//else
+				//{
+				//	foreach (var tab in entry.Value)
+				//		_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+				//}
+
+				foreach (var tab in entry.Value)
 				{
-					foreach (var tab in entry.Value)
-						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
+					foreach (var prop in tab.Value)
+					{
+						var categoryName = tab.Key;   // "MAE-4D"
+						var propName = prop.Key;      // "RID"
+						var propValue = prop.Value;
+
+						var category = entry.Key.PropertyCategories
+							.FindCategoryByDisplayName(categoryName);
+
+						var existingProp = category?
+							.Properties
+							.FindPropertyByDisplayName(propName);
+
+						if (existingProp != null)
+						{
+							var existingValue = existingProp.Value?.ToDisplayString();
+
+							if (!writeConfig.Overwrite &&
+								!string.IsNullOrWhiteSpace(existingValue))
+							{
+								skipped++;
+								continue;
+							}
+						}
+
+						_writer.WriteUserDefinedProperties(
+							entry.Key,
+							categoryName,
+							new Dictionary<string, string>
+							{
+				{ propName, propValue }
+							});
+
+						written++;
+					}
 				}
+
 
 				if (writeIndex % 10 == 0)
 				{
@@ -297,6 +339,9 @@ namespace NavisLegacyPlugin.Services
 			// ==========================
 			// DEBUG
 			System.Diagnostics.Debug.WriteLine($"[STEP A] RESULT → Matched: {matched}, Unmatched: {unmatched}");
+
+			System.Diagnostics.Debug.WriteLine($"[STEP B] RESULT → Written: {written}, Skipped: {skipped}");
+
 			// ==========================
 
 			return (matched, unmatched);

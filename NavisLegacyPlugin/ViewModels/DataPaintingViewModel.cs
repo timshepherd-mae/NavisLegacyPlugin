@@ -103,6 +103,9 @@ namespace NavisLegacyPlugin.ViewModels
 
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
+			ModelDepth = ModelDepthOption.Branch;
+			Overwrite = true;
+
 			_writer = writer;
 			_paintingService = new DataPaintingService(_modelLookupService, _writer);
 
@@ -186,7 +189,13 @@ namespace NavisLegacyPlugin.ViewModels
 
 			var writeConfig = new WriteConfig
 			{
-				WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+				WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase),
+
+				//
+				//
+				Overwrite = true
+				// 
+				//
 			};
 
 			var progressConfig = new ProgressConfig
@@ -215,10 +224,22 @@ namespace NavisLegacyPlugin.ViewModels
 
 		private Dictionary<string, ModelItem> BuildSelectionLookup(IEnumerable<ModelItem> items)
 		{
+			//
+			//
+			var duplicates = items
+				.GroupBy(i => i.InstanceGuid.ToString("D"))
+				.Where(g => g.Count() > 1)
+				.ToList();
+
+			Debug.WriteLine($"[DEBUG] Duplicate GUID groups: {duplicates.Count}");
+			//
+			//
+
 			return items
+				.GroupBy(item => item.InstanceGuid.ToString("D"))
 				.ToDictionary(
-					item => item.InstanceGuid.ToString("D"),
-					item => item,
+					g => g.Key,
+					g => g.First(),
 					StringComparer.OrdinalIgnoreCase);
 		}
 
@@ -252,7 +273,8 @@ namespace NavisLegacyPlugin.ViewModels
 
 				var writeConfig = new WriteConfig
 				{
-					WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+					//WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
+					Overwrite = Overwrite
 				};
 
 				var progressConfig = new ProgressConfig
