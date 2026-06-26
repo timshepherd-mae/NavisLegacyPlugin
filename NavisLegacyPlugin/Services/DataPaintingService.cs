@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
@@ -35,6 +36,8 @@ namespace NavisLegacyPlugin.Services
 
 			int matched = 0;
 			int unmatched = 0;
+
+
 
 			var lookupDict = await _lookupService.GetOrBuildLookupAsync(
 				lookup.LookupTab,
@@ -159,6 +162,9 @@ namespace NavisLegacyPlugin.Services
 		{
 			System.Diagnostics.Debug.WriteLine(">>> USING GUID LOOKUP PATH <<<");
 
+
+
+
 			// wrap existing lookup in provider
 			var lookupProvider = new DictionaryLookupProvider(lookup);
 
@@ -219,11 +225,22 @@ namespace NavisLegacyPlugin.Services
 				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
 					continue;
 
+
+				// DEBUGGING [C]
+				//
+				Debug.WriteLine($"[DEBUG] TRY MATCH GUID = {instruction.MatchValue}");
+
 				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
 				{
+					Debug.WriteLine($"[DEBUG] LOOKUP FAIL: {instruction.MatchValue}");
 					unmatched++;
 					continue;
 				}
+
+				Debug.WriteLine($"[DEBUG] LOOKUP HIT: {instruction.MatchValue} → {item.DisplayName}");
+				//
+				// DEBUGGING [C]
+
 
 				matched++;
 
@@ -266,21 +283,6 @@ namespace NavisLegacyPlugin.Services
 			{
 				writeIndex++;
 				
-				//if (writeConfig.WriteToLeafItems)
-				//{
-				//	var leafItems = new List<ModelItem>();
-				//	CollectLeafItems(entry.Key, leafItems);
-
-				//	foreach (var leaf in leafItems)
-				//		foreach (var tab in entry.Value)
-				//			_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
-				//}
-				//else
-				//{
-				//	foreach (var tab in entry.Value)
-				//		_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
-				//}
-
 				foreach (var tab in entry.Value)
 				{
 					foreach (var prop in tab.Value)
@@ -303,17 +305,33 @@ namespace NavisLegacyPlugin.Services
 							if (!writeConfig.Overwrite &&
 								!string.IsNullOrWhiteSpace(existingValue))
 							{
+
+								// DEBUGGING [C]
+								//
+								Debug.WriteLine(
+									$"[DEBUG] SKIP → TARGET={entry.Key.DisplayName} PROP={categoryName}.{propName}");
+								//
+								// DEBUGGING [C]
+
 								skipped++;
 								continue;
 							}
 						}
+
+						// DEBUGGING [C]
+						//
+						Debug.WriteLine(
+							$"[DEBUG] WRITE → TARGET={entry.Key.DisplayName} PROP={categoryName}.{propName} VALUE='{propValue}'");
+						//
+						// DEBUGGING [C]
+
 
 						_writer.WriteUserDefinedProperties(
 							entry.Key,
 							categoryName,
 							new Dictionary<string, string>
 							{
-				{ propName, propValue }
+								{ propName, propValue }
 							});
 
 						written++;

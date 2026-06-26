@@ -158,20 +158,25 @@ namespace NavisLegacyPlugin.ViewModels
 
 			int rawCount = table.Rows.Count;
 
-			// filter out rows with no RID
+			// DEBUGGING [C] filter out rows with no RID
+			//
 			for (int i = table.Rows.Count - 1; i >= 0; i--)
 			{
+				var guid = table.Rows[i]["InstanceGuid"]?.ToString();
 				var rid = table.Rows[i]["MAE-4D.RID"]?.ToString();
 
 				if (string.IsNullOrWhiteSpace(rid))
+				{
+					Debug.WriteLine($"[DEBUG] DROP A: GUID={guid} RID='{rid}'");
 					table.Rows.RemoveAt(i);
+				}
 			}
-
 			int filteredCount = table.Rows.Count;
 
 			Debug.WriteLine($"[DEBUG] SelectionA raw = {rawCount}");
 			Debug.WriteLine($"[DEBUG] SelectionA filtered = {filteredCount}");
-
+			//
+			// DEBUGGING [C]
 
 			var lookup = BuildSelectionLookup(CollectionB);
 
@@ -224,14 +229,24 @@ namespace NavisLegacyPlugin.ViewModels
 
 		private Dictionary<string, ModelItem> BuildSelectionLookup(IEnumerable<ModelItem> items)
 		{
+			// DEBUGGING [C]: Check for duplicate GUIDs in the input collection
 			//
-			//
-			var duplicates = items
+			var groups = items
 				.GroupBy(i => i.InstanceGuid.ToString("D"))
-				.Where(g => g.Count() > 1)
 				.ToList();
 
-			Debug.WriteLine($"[DEBUG] Duplicate GUID groups: {duplicates.Count}");
+			var duplicates = groups.Where(g => g.Count() > 1).ToList();
+
+			Debug.WriteLine("=========================================");
+			Debug.WriteLine($"[DEBUG] Lookup Input Count = {items.Count()}");
+			Debug.WriteLine($"[DEBUG] Unique GUIDs = {groups.Count}");
+			Debug.WriteLine($"[DEBUG] Duplicate GUID groups = {duplicates.Count}");
+
+			foreach (var g in duplicates.Take(10)) // limit spam
+			{
+				Debug.WriteLine($"[DEBUG] DUP GUID: {g.Key} count={g.Count()}");
+			}
+			Debug.WriteLine("=========================================");           
 			//
 			//
 
