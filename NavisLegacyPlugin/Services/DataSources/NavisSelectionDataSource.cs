@@ -4,7 +4,7 @@ using System.Data;
 using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 
-namespace NavisLegacyPlugin.Services
+namespace NavisLegacyPlugin.Services.DataSources
 {
 	public class NavisSelectionDataSource : IDataSource
 	{

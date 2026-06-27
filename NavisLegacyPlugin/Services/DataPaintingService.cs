@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Services;
 using NavisLegacyPlugin.Services.Lookups;
 using NavisLegacyPlugin.Services.Mappers;
+using NavisLegacyPlugin.Services.DataSources;
 
 namespace NavisLegacyPlugin.Services
 {

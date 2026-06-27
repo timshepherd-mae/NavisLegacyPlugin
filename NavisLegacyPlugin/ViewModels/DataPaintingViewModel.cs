@@ -9,6 +9,7 @@ using NavisLegacyPlugin.Services;
 using NavisLegacyPlugin.Models;
 using System.Data;
 using NavisLegacyPlugin.Services.Lookups;
+using NavisLegacyPlugin.Services.DataSources;
 
 namespace NavisLegacyPlugin.ViewModels
 {
