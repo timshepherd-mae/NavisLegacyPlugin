@@ -2,7 +2,7 @@
 using System.Data;
 using System.Threading.Tasks;
 
-namespace NavisLegacyPlugin.Services
+namespace NavisLegacyPlugin.Services.DataSources
 {
 	public interface IDataSource
 	{
