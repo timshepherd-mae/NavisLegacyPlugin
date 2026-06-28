@@ -8,6 +8,8 @@ using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Services;
 using NavisLegacyPlugin.Models;
 using System.Data;
+using NavisLegacyPlugin.Services.Lookups;
+using NavisLegacyPlugin.Services.DataSources;
 
 namespace NavisLegacyPlugin.ViewModels
 {
@@ -94,7 +96,7 @@ namespace NavisLegacyPlugin.ViewModels
 			set { _modelDepth = value; OnPropertyChanged(); }
 		}
 
-		private bool _overwrite = false; // false = skip
+		private bool _overwrite = false;
 		public bool Overwrite
 		{
 			get => _overwrite;
@@ -104,7 +106,6 @@ namespace NavisLegacyPlugin.ViewModels
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
 			ModelDepth = ModelDepthOption.Branch;
-			// Overwrite = true;
 
 			_writer = writer;
 			_paintingService = new DataPaintingService(_modelLookupService, _writer);
@@ -156,27 +157,15 @@ namespace NavisLegacyPlugin.ViewModels
 
 			var table = BuildSelectionDataTable(CollectionA);
 
-			int rawCount = table.Rows.Count;
-
-			// DEBUGGING [C] filter out rows with no RID
-			//
 			for (int i = table.Rows.Count - 1; i >= 0; i--)
 			{
-				var guid = table.Rows[i]["InstanceGuid"]?.ToString();
 				var rid = table.Rows[i]["MAE-4D.RID"]?.ToString();
 
 				if (string.IsNullOrWhiteSpace(rid))
 				{
-					Debug.WriteLine($"[DEBUG] DROP A: GUID={guid} RID='{rid}'");
 					table.Rows.RemoveAt(i);
 				}
 			}
-			int filteredCount = table.Rows.Count;
-
-			Debug.WriteLine($"[DEBUG] SelectionA raw = {rawCount}");
-			Debug.WriteLine($"[DEBUG] SelectionA filtered = {filteredCount}");
-			//
-			// DEBUGGING [C]
 
 			var lookup = BuildSelectionLookup(CollectionB);
 
@@ -195,12 +184,6 @@ namespace NavisLegacyPlugin.ViewModels
 			var writeConfig = new WriteConfig
 			{
 				WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase),
-
-				//
-				//
-				// Overwrite = true
-				// 
-				//
 			};
 
 			var progressConfig = new ProgressConfig
@@ -229,26 +212,11 @@ namespace NavisLegacyPlugin.ViewModels
 
 		private Dictionary<string, ModelItem> BuildSelectionLookup(IEnumerable<ModelItem> items)
 		{
-			// DEBUGGING [C]: Check for duplicate GUIDs in the input collection
-			//
 			var groups = items
 				.GroupBy(i => i.InstanceGuid.ToString("D"))
 				.ToList();
 
 			var duplicates = groups.Where(g => g.Count() > 1).ToList();
-
-			Debug.WriteLine("=========================================");
-			Debug.WriteLine($"[DEBUG] Lookup Input Count = {items.Count()}");
-			Debug.WriteLine($"[DEBUG] Unique GUIDs = {groups.Count}");
-			Debug.WriteLine($"[DEBUG] Duplicate GUID groups = {duplicates.Count}");
-
-			foreach (var g in duplicates.Take(10)) // limit spam
-			{
-				Debug.WriteLine($"[DEBUG] DUP GUID: {g.Key} count={g.Count()}");
-			}
-			Debug.WriteLine("=========================================");           
-			//
-			//
 
 			return items
 				.GroupBy(item => item.InstanceGuid.ToString("D"))
@@ -288,7 +256,6 @@ namespace NavisLegacyPlugin.ViewModels
 
 				var writeConfig = new WriteConfig
 				{
-					//WriteToLeafItems = string.Equals(WriteMode, "Leaf", StringComparison.OrdinalIgnoreCase)
 					Overwrite = Overwrite
 				};
 

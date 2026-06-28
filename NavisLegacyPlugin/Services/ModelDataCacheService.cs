@@ -6,16 +6,12 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Windows;
 using System.Windows.Threading;
+using NavisLegacyPlugin.Services.Lookups;
 
 namespace NavisLegacyPlugin.Services
 {
 	public class ModelDataCacheService
 	{
-		public class LookupProgressInfo
-		{
-			public string Stage { get; set; }
-			public int ItemsScanned { get; set; }
-		}
 
 		[DataContract]
 		private class SynchroLookupCacheFile
@@ -43,7 +39,7 @@ namespace NavisLegacyPlugin.Services
 		/// 3) full rebuild from model property scan
 		/// </summary>
 		public async System.Threading.Tasks.Task<Dictionary<string, ModelItem>> GetOrBuildSynchroLookupAsync(
-			IProgress<LookupProgressInfo> progress = null)
+			IProgress<ModelLookupService.LookupProgressInfo> progress = null)
 		{
 			var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
 			if (doc == null)
@@ -52,7 +48,7 @@ namespace NavisLegacyPlugin.Services
 			// 1) In-memory cache for current Navis session
 			if (_sessionLookup != null && ReferenceEquals(_sessionDocument, doc))
 			{
-				progress?.Report(new LookupProgressInfo
+				progress?.Report(new ModelLookupService.LookupProgressInfo
 				{
 					Stage = "Using in-memory lookup cache...",
 					ItemsScanned = _sessionLookup.Count
@@ -96,12 +92,12 @@ namespace NavisLegacyPlugin.Services
 
 		private async System.Threading.Tasks.Task<Dictionary<string, ModelItem>> BuildLookupFromModelAsync(
 			Document doc,
-			IProgress<LookupProgressInfo> progress)
+			IProgress<ModelLookupService.LookupProgressInfo> progress)
 		{
 			var lookup = new Dictionary<string, ModelItem>(StringComparer.OrdinalIgnoreCase);
 			int counter = 0;
 
-			progress?.Report(new LookupProgressInfo
+			progress?.Report(new ModelLookupService.LookupProgressInfo
 			{
 				Stage = "Building Synchro lookup... scanned",
 				ItemsScanned = 0
@@ -134,7 +130,7 @@ namespace NavisLegacyPlugin.Services
 
 					if (counter % 500 == 0)
 					{
-						progress?.Report(new LookupProgressInfo
+						progress?.Report(new ModelLookupService.LookupProgressInfo
 						{
 							Stage = "Building Synchro lookup... scanned",
 							ItemsScanned = counter
@@ -147,7 +143,7 @@ namespace NavisLegacyPlugin.Services
 				}
 			}
 
-			progress?.Report(new LookupProgressInfo
+			progress?.Report(new ModelLookupService.LookupProgressInfo
 			{
 				Stage = "Lookup build complete",
 				ItemsScanned = lookup.Count
@@ -159,7 +155,7 @@ namespace NavisLegacyPlugin.Services
 		private async System.Threading.Tasks.Task<Dictionary<string, ModelItem>> ResolveCachedLookupAsync(
 			Document doc,
 			SynchroLookupCacheFile cache,
-			IProgress<LookupProgressInfo> progress)
+			IProgress<ModelLookupService.LookupProgressInfo> progress)
 		{
 			var lookup = new Dictionary<string, ModelItem>(StringComparer.OrdinalIgnoreCase);
 
@@ -176,7 +172,7 @@ namespace NavisLegacyPlugin.Services
 
 			int counter = 0;
 
-			progress?.Report(new LookupProgressInfo
+			progress?.Report(new ModelLookupService.LookupProgressInfo
 			{
 				Stage = "Resolving disk cache... scanned",
 				ItemsScanned = 0
@@ -200,7 +196,7 @@ namespace NavisLegacyPlugin.Services
 
 					if (counter % 1000 == 0)
 					{
-						progress?.Report(new LookupProgressInfo
+						progress?.Report(new ModelLookupService.LookupProgressInfo
 						{
 							Stage = "Resolving disk cache... scanned",
 							ItemsScanned = counter
@@ -213,7 +209,7 @@ namespace NavisLegacyPlugin.Services
 				}
 			}
 
-			progress?.Report(new LookupProgressInfo
+			progress?.Report(new ModelLookupService.LookupProgressInfo
 			{
 				Stage = "Disk cache resolved",
 				ItemsScanned = lookup.Count

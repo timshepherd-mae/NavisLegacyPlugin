@@ -6,7 +6,7 @@ using System.Windows;
 using System.Windows.Threading;
 using Autodesk.Navisworks.Api;
 
-namespace NavisLegacyPlugin.Services
+namespace NavisLegacyPlugin.Services.Lookups
 {
 	public class ModelLookupService
 	{
