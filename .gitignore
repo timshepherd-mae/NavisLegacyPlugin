@@ -368,3 +368,6 @@ Documentation/
 
 # Logging
 Logs/
+
+# Ignore Bundle\Contents
+/NavisLegacyPlugin.bundle/Contents/NavisLegacyPlugin.dll
