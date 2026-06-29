@@ -1,15 +1,17 @@
 ﻿<UserControl x:Class="NavisLegacyPlugin.UI.DataPaintingTab"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:NavisLegacyPlugin"
-             xmlns:conv="clr-namespace:NavisLegacyPlugin.Converters"
-			 DataContext="{Binding DataPainting}">
+            xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 
+			xmlns:wf="clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"
+			xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"	
+			xmlns:conv="clr-namespace:NavisLegacyPlugin.Converters" 
+            xmlns:local="clr-namespace:NavisLegacyPlugin"
+			DataContext="{Binding DataPainting}">
 
 	<UserControl.Resources>
 		<conv:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
-		<conv:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+		<conv:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
 	</UserControl.Resources>
-
 
 	<Grid Margin="10">
 
@@ -48,7 +50,7 @@
 		</GroupBox>
 
 		<!-- Get Model Collections -->
-		<StackPanel Grid.Row="2" Orientation="Vertical" Margin="5">
+		<StackPanel Grid.Row="2" Orientation="Vertical" Margin="0">
 
 			<!-- ✅ COLLECTION A -->
 			<GroupBox Header="Collection A" Margin="5">
@@ -101,12 +103,61 @@
 		</StackPanel>
 
 
-		<!-- Write Test -->
-		<Button Grid.Row="3"
-            Content="Write Test Property"
-            Width="160"
-            Command="{Binding WriteTestCommand}"
-				IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
+		<!-- Write Section -->
+		<GroupBox Grid.Row="3" Header="Write Property" Margin="5">
+			<Grid Margin="5">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="140"/>
+					<ColumnDefinition Width="*"/>
+				</Grid.ColumnDefinitions>
+
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+				</Grid.RowDefinitions>
+
+				<!-- Write Button -->
+				<Button Grid.Row="0" Grid.Column="0"
+                Content="Write to Selected"
+                Width="120"
+                Margin="0,0,10,5"
+                Command="{Binding WriteTestCommand}"
+                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
+
+				<!-- Property Tab -->
+				<Button Grid.Row="0" Grid.Column="1"
+                Margin="-5,0,5,5"
+                Command="{Binding EditPropertyTabCommand}">
+					<TextBlock>
+                <Run Text="Tab: "/>
+                <Run Text="{Binding PropertyTabName, TargetNullValue='[Set]'}"/>
+					</TextBlock>
+				</Button>
+
+				<!-- Property Name -->
+				<Button Grid.Row="1" Grid.Column="1"
+                Margin="-5,0,5,5"
+                Command="{Binding EditPropertyNameCommand}">
+					<TextBlock>
+                <Run Text="Name: "/>
+                <Run Text="{Binding PropertyName, TargetNullValue='[Set]'}"/>
+					</TextBlock>
+				</Button>
+
+				<!-- Property Value -->
+				<Button Grid.Row="2" Grid.Column="1"
+				Margin="-5,0,5,5"		
+                Command="{Binding EditPropertyValueCommand}">
+					<TextBlock>
+                <Run Text="Value: "/>
+                <Run Text="{Binding PropertyValue, TargetNullValue='[Set]'}"/>
+					</TextBlock>
+				</Button>
+
+			</Grid>
+		</GroupBox>
 
 		<!-- Get Synchro Data button -->
 		<Button Grid.Row="4"
@@ -114,7 +165,7 @@
             Width="160"
             Margin="0,10,0,0"
             Command="{Binding GetSynchroDataCommand}"
-				IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}	}"/>
+				IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
 
 		<Button Grid.Row="5"
 			Content="Transfer RID A → B"

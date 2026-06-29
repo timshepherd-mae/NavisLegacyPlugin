@@ -24,6 +24,7 @@
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="WindowsFormsIntegration" />
   </ItemGroup>
 
   <ItemGroup>

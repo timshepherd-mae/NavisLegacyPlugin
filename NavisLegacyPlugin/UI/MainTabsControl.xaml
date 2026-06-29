@@ -4,6 +4,7 @@
              xmlns:ui="clr-namespace:NavisLegacyPlugin.UI">
 
 	<TabControl Margin="10">
+
 		<TabItem Header="Geometry Compare">
 			<ui:GeometryCompareTab />
 		</TabItem>

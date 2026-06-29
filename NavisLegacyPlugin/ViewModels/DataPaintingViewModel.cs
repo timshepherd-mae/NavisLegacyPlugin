@@ -10,6 +10,7 @@ using NavisLegacyPlugin.Models;
 using System.Data;
 using NavisLegacyPlugin.Services.Lookups;
 using NavisLegacyPlugin.Services.DataSources;
+using NavisLegacyPlugin.UI;
 
 namespace NavisLegacyPlugin.ViewModels
 {
@@ -38,6 +39,9 @@ namespace NavisLegacyPlugin.ViewModels
 		public int CollectionBCount => CollectionB.Count;
 
 		public ICommand WriteTestCommand { get; }
+		public ICommand EditPropertyTabCommand { get; }
+		public ICommand EditPropertyNameCommand { get; }
+		public ICommand EditPropertyValueCommand { get; }
 		public ICommand GetSynchroDataCommand { get; }
 		public ICommand TransferRidCommand { get; }
 
@@ -103,6 +107,28 @@ namespace NavisLegacyPlugin.ViewModels
 			set { _overwrite = value; OnPropertyChanged(); }
 		}
 
+		// --- Property Write Inputs ---
+		private string _propertyTabName = "";
+		public string PropertyTabName
+		{
+			get => _propertyTabName;
+			set { _propertyTabName = value; OnPropertyChanged(); }
+		}
+
+		private string _propertyName = "";
+		public string PropertyName
+		{
+			get => _propertyName;
+			set { _propertyName = value; OnPropertyChanged(); }
+		}
+
+		private string _propertyValue = "";
+		public string PropertyValue
+		{
+			get => _propertyValue;
+			set { _propertyValue = value; OnPropertyChanged(); }
+		}
+
 		public DataPaintingViewModel(ComPropertyWriteService writer)
 		{
 			ModelDepth = ModelDepthOption.Branch;
@@ -111,6 +137,11 @@ namespace NavisLegacyPlugin.ViewModels
 			_paintingService = new DataPaintingService(_modelLookupService, _writer);
 
 			WriteTestCommand = new RelayCommand(WriteTest);
+
+			EditPropertyTabCommand = new RelayCommand(() => EditField(nameof(PropertyTabName)));
+			EditPropertyNameCommand = new RelayCommand(() => EditField(nameof(PropertyName)));
+			EditPropertyValueCommand = new RelayCommand(() => EditField(nameof(PropertyValue)));
+
 			GetSynchroDataCommand = new RelayCommand(GetSynchroData);
 
 			GeometrySelectionService.SelectionChanged += OnSelectionChanged;
@@ -121,12 +152,54 @@ namespace NavisLegacyPlugin.ViewModels
 
 		private void WriteTest()
 		{
-			var props = new Dictionary<string, string>
+			// --- Basic validation ---
+			if (string.IsNullOrWhiteSpace(PropertyTabName))
 			{
-				{ "RID", DateTime.Now.ToString("HHmmss") }
+				Status = "Please enter a Property Tab Name.";
+				return;
+			}
+
+			if (string.IsNullOrWhiteSpace(PropertyName))
+			{
+				Status = "Please enter a Property Name.";
+				return;
+			}
+
+			// Value can be empty, but not null
+			var value = PropertyValue ?? string.Empty;
+
+			// --- Build property dictionary ---
+			var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+			{
+				{ PropertyName.Trim(), value }
 			};
 
-			_writer.WriteToCurrentSelection("Synchro", props, false);
+			// --- Model Depth handling ---
+			bool writeToLeafItems = (ModelDepth == ModelDepthOption.All);
+
+			try
+			{
+				IsBusy = true;
+				Status = "Writing property...";
+
+				// --- Write using existing service ---
+				_writer.WriteToCurrentSelection(
+					PropertyTabName.Trim(),
+					props,
+					writeToLeafItems
+				);
+
+				Status = "Write complete.";
+			}
+			catch (Exception ex)
+			{
+				Status = $"Error: {ex.Message}";
+				System.Diagnostics.Debug.WriteLine(ex);
+			}
+			finally
+			{
+				IsBusy = false;
+			}
 		}
 
 		private async void TransferRid()
@@ -302,6 +375,64 @@ namespace NavisLegacyPlugin.ViewModels
 		{
 			UpdateTransferState();
 		}
+
+		private void EditField(string fieldName)
+		{
+			string currentValue = "";
+
+			switch (fieldName)
+			{
+				case nameof(PropertyTabName):
+					currentValue = PropertyTabName;
+					break;
+
+				case nameof(PropertyName):
+					currentValue = PropertyName;
+					break;
+
+				case nameof(PropertyValue):
+					currentValue = PropertyValue;
+					break;
+			}
+
+			string label = "";
+
+			switch (fieldName)
+			{
+				case nameof(PropertyTabName):
+					label = "Property Tab";
+					break;
+
+				case nameof(PropertyName):
+					label = "Property Name";
+					break;
+
+				case nameof(PropertyValue):
+					label = "Property Value";
+					break;
+			}
+
+			var dialog = new InputDialog(currentValue, label);
+
+			if (dialog.ShowDialog() == true)
+			{
+				switch (fieldName)
+				{
+					case nameof(PropertyTabName):
+						PropertyTabName = dialog.Result;
+						break;
+
+					case nameof(PropertyName):
+						PropertyName = dialog.Result;
+						break;
+
+					case nameof(PropertyValue):
+						PropertyValue = dialog.Result;
+						break;
+				}
+			}
+		}
+
 
 		public void CaptureSelectionA()
 		{

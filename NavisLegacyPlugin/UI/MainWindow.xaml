@@ -8,6 +8,6 @@
         WindowStartupLocation="CenterOwner">
 
 	<!-- MainWindow now contains ONLY the tabs host -->
-	<ui:MainTabsControl />
+	<ui:MainTabsControl/>
 
 </Window>
