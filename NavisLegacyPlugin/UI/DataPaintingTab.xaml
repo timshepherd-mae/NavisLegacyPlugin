@@ -20,7 +20,7 @@
 			<RowDefinition Height="Auto"/>			<!-- Overwrite -->
 			<RowDefinition Height="Auto"/>			<!-- Get Model Collections -->
 			<RowDefinition Height="Auto"/>			<!-- Write Test -->
-			<RowDefinition Height="Auto"/>			<!-- GetData -->
+			<RowDefinition Height="Auto"/>			<!-- GetSynchroData -->
 			<RowDefinition Height="Auto"/>			<!-- Transfer RID -->
 			<RowDefinition Height="Auto"/>			<!-- Progress bar -->
 			<RowDefinition Height="Auto"/>			<!-- Progress text -->
@@ -159,15 +159,44 @@
 			</Grid>
 		</GroupBox>
 
-		<!-- Get Synchro Data button -->
-		<Button Grid.Row="4"
-            Content="Get Synchro Data"
-            Width="160"
-            Margin="0,10,0,0"
-            Command="{Binding GetSynchroDataCommand}"
-				IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
+        <!-- Synchro Data File + Get Synchro Data button -->
+        <StackPanel Grid.Row="4"
+            Orientation="Vertical"
+            Margin="0,10,0,0">
 
-		<Button Grid.Row="5"
+            <Grid Margin="0,0,0,5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBox Grid.Column="0"
+                 MinWidth="320"
+                 Height="24"
+                 VerticalContentAlignment="Center"
+                 Text="{Binding SynchroDataFilePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Selected Synchro data CSV file"
+                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+
+                <Button Grid.Column="2"
+                Content="Get data file"
+                Width="110"
+                Command="{Binding BrowseSynchroDataFileCommand}"
+                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+            </Grid>
+
+            <Button Content="Get Synchro Data"
+            Width="160"
+            HorizontalAlignment="Left"
+            Command="{Binding GetSynchroDataCommand}"
+            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+
+        </StackPanel>
+        
+        
+        <!-- Transfer RID button -->
+        <Button Grid.Row="5"
 			Content="Transfer RID A → B"
 			Width="160"
 			Margin="0,10,0,0"

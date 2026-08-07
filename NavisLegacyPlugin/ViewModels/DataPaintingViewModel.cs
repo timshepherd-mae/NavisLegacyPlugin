@@ -1,13 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Data;
+using System.IO;
 using System.Linq;
 using System.Windows.Input;
+
+using Microsoft.Win32;
+
 using Autodesk.Navisworks.Api;
+
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Services;
 using NavisLegacyPlugin.Models;
-using System.Data;
 using NavisLegacyPlugin.Services.Lookups;
 using NavisLegacyPlugin.Services.DataSources;
 using NavisLegacyPlugin.UI;
@@ -21,7 +26,20 @@ namespace NavisLegacyPlugin.ViewModels
 		private readonly ModelLookupService _modelLookupService = new ModelLookupService();
 		private readonly DataPaintingService _paintingService;
 
-		private bool _canTransferRid;
+		private string _synchroDataFilePath = string.Empty;
+		public string SynchroDataFilePath
+        {
+            get => _synchroDataFilePath;
+            set 
+			{				
+				if (_synchroDataFilePath == value)
+					return;
+				
+				_synchroDataFilePath = value; 
+				OnPropertyChanged(); }
+        }
+
+        private bool _canTransferRid;
 		public bool CanTransferRid
 		{
 			get => _canTransferRid;
@@ -42,8 +60,10 @@ namespace NavisLegacyPlugin.ViewModels
 		public ICommand EditPropertyTabCommand { get; }
 		public ICommand EditPropertyNameCommand { get; }
 		public ICommand EditPropertyValueCommand { get; }
+		public ICommand BrowseSynchroDataFileCommand {  get; }
 		public ICommand GetSynchroDataCommand { get; }
 		public ICommand TransferRidCommand { get; }
+
 
 		public ICommand CaptureSelectionACommand => new RelayCommand(CaptureSelectionA);
 		public ICommand ClearSelectionACommand => new RelayCommand(ClearSelectionA);
@@ -141,6 +161,8 @@ namespace NavisLegacyPlugin.ViewModels
 			EditPropertyTabCommand = new RelayCommand(() => EditField(nameof(PropertyTabName)));
 			EditPropertyNameCommand = new RelayCommand(() => EditField(nameof(PropertyName)));
 			EditPropertyValueCommand = new RelayCommand(() => EditField(nameof(PropertyValue)));
+
+			BrowseSynchroDataFileCommand = new RelayCommand(BrowseSynchroDataFile);
 
 			GetSynchroDataCommand = new RelayCommand(GetSynchroData);
 
@@ -299,11 +321,56 @@ namespace NavisLegacyPlugin.ViewModels
 					StringComparer.OrdinalIgnoreCase);
 		}
 
+        private void BrowseSynchroDataFile()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "Select Synchro data file",
+                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                CheckFileExists = true,
+                CheckPathExists = true,
+                Multiselect = false
+            };
 
-		private async void GetSynchroData()
+            if (!string.IsNullOrWhiteSpace(SynchroDataFilePath))
+            {
+                string existingDirectory = Path.GetDirectoryName(SynchroDataFilePath);
+
+                if (!string.IsNullOrWhiteSpace(existingDirectory) && Directory.Exists(existingDirectory))
+                {
+                    dialog.InitialDirectory = existingDirectory;
+                }
+
+                dialog.FileName = Path.GetFileName(SynchroDataFilePath);
+            }
+
+            bool? result = dialog.ShowDialog();
+
+            if (result == true)
+            {
+                SynchroDataFilePath = dialog.FileName;
+            }
+        }
+
+
+
+        private async void GetSynchroData()
 		{
-			try
-			{
+            if (string.IsNullOrWhiteSpace(SynchroDataFilePath))
+            {
+                Status = "Please select a Synchro data CSV file.";
+                return;
+            }
+
+            if (!File.Exists(SynchroDataFilePath))
+            {
+                Status = $"Synchro data CSV file not found: {SynchroDataFilePath}";
+                return;
+            }
+
+
+            try
+            {
 				IsBusy = true;
 				ProgressText = "Reading CSV...";
 
@@ -340,7 +407,7 @@ namespace NavisLegacyPlugin.ViewModels
 
 				var dataSource = new CsvDataSource(
 					_csvService,
-					@"C:\Users\tshepherd\OneDrive - Murphy\_dev\Synchro\ResourceTransfer\StFergus Unit Test\Tranfer Process Test\data.csv",
+					SynchroDataFilePath,
 					2,
 					"3DUF:RID"
 				);
