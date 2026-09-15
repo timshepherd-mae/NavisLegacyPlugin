@@ -163,140 +163,21 @@ namespace NavisLegacyPlugin.Services
 		{
 			System.Diagnostics.Debug.WriteLine(">>> USING GUID LOOKUP PATH <<<");
 
-			// wrap existing lookup in provider
-			var lookupProvider = new DictionaryLookupProvider(lookup);
+            var signature =
+                new ExecuteSignature(
+                    dataSource,
+                    new MappingConfigStrategy(mapping),
+                    new DictionaryLookupProvider(lookup),
+                    writeConfig,
+                    progress);
 
-			// build lookup through provider (no behaviour change)
-			var lookupDict = await lookupProvider.BuildLookupAsync(progress);
+            var result =
+                await ExecuteAsync(signature);
 
-			int matched = 0;
-			int unmatched = 0;
-			int written = 0;
-			int skipped = 0;
-
-			var table = await dataSource.GetDataAsync(progress.ProgressText);
-
-			var itemWriteMap =
-				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
-
-			int totalRows = table.Rows.Count;
-			int rowIndex = 0;
-
-			progress.ProgressText?.Report("Grouping data...");
-
-			var mappingStrategy = new MappingConfigStrategy(mapping);
-
-			foreach (DataRow row in table.Rows)
-			{
-				rowIndex++;
-				
-				var instruction = mappingStrategy.Map(row);
-
-				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
-					continue;
-
-
-				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
-				{
-					unmatched++;
-					continue;
-				}
-
-				matched++;
-
-				foreach (var tab in instruction.PropertiesByTab)
-				{
-					if (!itemWriteMap.TryGetValue(item, out var tabDict))
-					{
-						tabDict = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-						itemWriteMap[item] = tabDict;
-					}
-
-					if (!tabDict.TryGetValue(tab.Key, out var propDict))
-					{
-						propDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-						tabDict[tab.Key] = propDict;
-					}
-
-					foreach (var kvp in tab.Value)
-						propDict[kvp.Key] = kvp.Value;
-				}
-
-				if (rowIndex % 50 == 0) // throttle
-				{
-					int percent = 35 + (rowIndex * 30 / totalRows);
-					progress.ProgressPercent?.Report(percent);
-					progress.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
-
-					await System.Windows.Application.Current.Dispatcher
-						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
-				}
-
-			}
-
-			int totalItems = itemWriteMap.Count;
-			int writeIndex = 0;
-
-			progress.ProgressText?.Report("Writing data...");
-
-			foreach (var entry in itemWriteMap)
-			{
-				writeIndex++;
-				
-				foreach (var tab in entry.Value)
-				{
-					foreach (var prop in tab.Value)
-					{
-						var categoryName = tab.Key;
-						var propName = prop.Key;
-						var propValue = prop.Value;
-
-						var category = entry.Key.PropertyCategories
-							.FindCategoryByDisplayName(categoryName);
-
-						var existingProp = category?
-							.Properties
-							.FindPropertyByDisplayName(propName);
-
-						if (!writeConfig.Overwrite)
-						{
-							if (existingProp != null)
-							{
-								skipped++;
-								continue;
-							}
-						}
-
-						_writer.WriteUserDefinedProperties(
-							entry.Key,
-							categoryName,
-							new Dictionary<string, string>
-							{
-								{ propName, propValue }
-							});
-
-						written++;
-					}
-				}
-
-
-				if (writeIndex % 10 == 0)
-				{
-					int percent = 65 + (writeIndex * 35 / totalItems);
-					progress.ProgressPercent?.Report(percent);
-					progress.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
-
-					await System.Windows.Application.Current.Dispatcher
-						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
-				}
-
-			}
-
-			progress.ProgressPercent?.Report(100);
-			progress.ProgressText?.Report("Complete.");
-
-			return (matched, unmatched);
-		}
+            return (
+                result.Matched,
+                result.Unmatched);
+        }
 
         public async Task<ExecuteResult> ExecuteAsync(
 			ExecuteSignature signature)
