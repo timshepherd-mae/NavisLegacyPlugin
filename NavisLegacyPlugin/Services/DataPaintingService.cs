@@ -276,54 +276,84 @@ namespace NavisLegacyPlugin.Services
             {
                 writeIndex++;
 
-                foreach (var tab in entry.Value)
+                var targetItems = new List<ModelItem>();
+
+                if (signature.WriteConfig.WriteToLeafItems)
                 {
-                    foreach (var prop in tab.Value)
+                    CollectLeafItems(
+                        entry.Key,
+                        targetItems);
+                }
+                else
+                {
+                    targetItems.Add(entry.Key);
+                }
+
+                foreach (var targetItem in targetItems)
+                {
+                    foreach (var tab in entry.Value)
                     {
-                        var categoryName = tab.Key;
-                        var propName = prop.Key;
-                        var propValue = prop.Value;
-
-                        var category = entry.Key.PropertyCategories
-                            .FindCategoryByDisplayName(categoryName);
-
-                        var existingProp = category?
-                            .Properties
-                            .FindPropertyByDisplayName(propName);
-
-                        if (!signature.WriteConfig.Overwrite)
+                        foreach (var prop in tab.Value)
                         {
-                            if (existingProp != null)
+                            var categoryName = tab.Key;
+                            var propName = prop.Key;
+                            var propValue = prop.Value;
+
+                            var category =
+                                targetItem.PropertyCategories
+                                    .FindCategoryByDisplayName(
+                                        categoryName);
+
+                            var existingProp =
+                                category?
+                                    .Properties
+                                    .FindPropertyByDisplayName(
+                                        propName);
+
+                            if (!signature.WriteConfig.Overwrite)
                             {
-                                skipped++;
-                                continue;
+                                if (existingProp != null)
+                                {
+                                    skipped++;
+                                    continue;
+                                }
                             }
+
+                            _writer.WriteUserDefinedProperties(
+                                targetItem,
+                                categoryName,
+                                new Dictionary<string, string>
+                                {
+                        { propName, propValue }
+                                });
+
+                            written++;
                         }
-
-                        _writer.WriteUserDefinedProperties(
-                            entry.Key,
-                            categoryName,
-                            new Dictionary<string, string>
-                            {
-                                { propName, propValue }
-                            });
-
-                        written++;
                     }
                 }
 
-
                 if (writeIndex % 10 == 0)
                 {
-                    int percent = 65 + (writeIndex * 35 / totalItems);
-                    signature.ProgressConfig.ProgressPercent?.Report(percent);
-                    signature.ProgressConfig.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
+                    int percent =
+                        65 + (writeIndex * 35 / totalItems);
 
-                    await System.Windows.Application.Current.Dispatcher
-                        .InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+                    signature.ProgressConfig
+                        .ProgressPercent?
+                        .Report(percent);
+
+                    signature.ProgressConfig
+                        .ProgressText?
+                        .Report(
+                            $"Writing {writeIndex}/{totalItems}");
+
+                    await System.Windows.Application.Current
+                        .Dispatcher.InvokeAsync(
+                            () => { },
+                            System.Windows.Threading
+                                .DispatcherPriority.Background);
                 }
-
             }
+
 
             signature.ProgressConfig.ProgressPercent?.Report(100);
             signature.ProgressConfig.ProgressText?.Report("Complete.");
