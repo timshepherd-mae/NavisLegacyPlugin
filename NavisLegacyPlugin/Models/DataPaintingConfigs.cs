@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using NavisLegacyPlugin.Services.DataSources;
+using NavisLegacyPlugin.Services.Lookups;
+using NavisLegacyPlugin.Services.Mappers;
 
 namespace NavisLegacyPlugin.Models
 {
@@ -26,4 +29,5 @@ namespace NavisLegacyPlugin.Models
 		public IProgress<string> ProgressText { get; set; }
 		public IProgress<int> ProgressPercent { get; set; }
 	}
+
 }
