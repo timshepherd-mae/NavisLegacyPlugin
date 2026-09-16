@@ -32,129 +32,30 @@ namespace NavisLegacyPlugin.Services
 			LookupConfig lookup,
 			WriteConfig writeConfig,
 			ProgressConfig progress)
-		{
-			System.Diagnostics.Debug.WriteLine(">>> USING SYNCHRO LOOKUP PATH <<<");
+        {
+            Debug.WriteLine(
+                ">>> SYNCHRO ADAPTER CREATING EXECUTESIGNATURE <<<");
 
-			int matched = 0;
-			int unmatched = 0;
+            var signature =
+                new ExecuteSignature(
+                    dataSource,
+                    new MappingConfigStrategy(mapping),
+                    new ModelPropertyLookupProvider(
+                        _lookupService,
+                        lookup),
+                    writeConfig,
+                    progress);
+
+            var result =
+                await ExecuteAsync(signature);
+
+            return (
+                result.Matched,
+                result.Unmatched);
+        }
 
 
-
-			var lookupDict = await _lookupService.GetOrBuildLookupAsync(
-				lookup.LookupTab,
-				lookup.LookupProperty,
-				new Progress<ModelLookupService.LookupProgressInfo>(info =>
-				{
-					progress.ProgressText?.Report($"{info.Stage} {info.ItemsScanned}");
-				}));
-
-			progress.ProgressPercent?.Report(35);
-			progress.ProgressText?.Report("Reading data...");
-
-			var table = await dataSource.GetDataAsync(progress.ProgressText);
-
-			progress.ProgressText?.Report("Processing data...");
-			progress.ProgressPercent?.Report(35);
-
-			var itemWriteMap =
-				new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
-
-			int totalRows = table.Rows.Count;
-			int rowIndex = 0;
-
-			progress.ProgressText?.Report("Grouping data...");
-
-			foreach (DataRow row in table.Rows)
-			{
-				rowIndex++;
-
-				var mapped = PropertyMappingHelper.MapRow(row, mapping.ColumnMap);
-				var instruction = PaintInstructionBuilder.Build(mapped, mapping.MatchColumn);
-
-				if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
-					continue;
-
-				if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
-				{
-					unmatched++;
-					continue;
-				}
-
-				matched++;
-
-				foreach (var tab in instruction.PropertiesByTab)
-				{
-					if (!itemWriteMap.TryGetValue(item, out var tabDict))
-					{
-						tabDict = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-						itemWriteMap[item] = tabDict;
-					}
-
-					if (!tabDict.TryGetValue(tab.Key, out var propDict))
-					{
-						propDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-						tabDict[tab.Key] = propDict;
-					}
-
-					foreach (var kvp in tab.Value)
-						propDict[kvp.Key] = kvp.Value;
-				}
-
-				if (rowIndex % 50 == 0) // lower than 50 for responsiveness
-				{
-					int percent = 35 + (rowIndex * 30 / totalRows);
-					progress.ProgressPercent?.Report(percent);
-					progress.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
-
-					await System.Windows.Application.Current.Dispatcher
-						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
-				}
-
-			}
-
-			int totalItems = itemWriteMap.Count;
-			int writeIndex = 0;
-
-			progress.ProgressText?.Report("Writing data...");
-
-			foreach (var entry in itemWriteMap)
-			{
-				writeIndex++;
-
-				if (writeConfig.WriteToLeafItems)
-				{
-					var leafItems = new List<ModelItem>();
-					CollectLeafItems(entry.Key, leafItems);
-
-					foreach (var leaf in leafItems)
-						foreach (var tab in entry.Value)
-							_writer.WriteUserDefinedProperties(leaf, tab.Key, tab.Value);
-				}
-				else
-				{
-					foreach (var tab in entry.Value)
-						_writer.WriteUserDefinedProperties(entry.Key, tab.Key, tab.Value);
-				}
-
-				if (writeIndex % 200 == 0)
-				{
-					int percent = 65 + (writeIndex * 35 / totalItems);
-					progress.ProgressPercent?.Report(percent);
-					progress.ProgressText?.Report($"Writing {writeIndex}/{totalItems}");
-
-					await System.Windows.Application.Current.Dispatcher
-						.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
-
-				}
-			}
-
-			progress.ProgressPercent?.Report(100);
-			progress.ProgressText?.Report("Complete.");
-
-			return (matched, unmatched);
-		}
-
-		public async Task<(int matched, int unmatched)> ExecuteAsync(
+        public async Task<(int matched, int unmatched)> ExecuteAsync(
 			IDataSource dataSource,
 			MappingConfig mapping,
 			Dictionary<string, ModelItem> lookup,
