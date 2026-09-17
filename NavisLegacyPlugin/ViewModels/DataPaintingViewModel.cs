@@ -15,6 +15,7 @@ using NavisLegacyPlugin.Services;
 using NavisLegacyPlugin.Models;
 using NavisLegacyPlugin.Services.Lookups;
 using NavisLegacyPlugin.Services.DataSources;
+using NavisLegacyPlugin.Services.Execution;
 using NavisLegacyPlugin.UI;
 
 namespace NavisLegacyPlugin.ViewModels
@@ -154,7 +155,8 @@ namespace NavisLegacyPlugin.ViewModels
 			ModelDepth = ModelDepthOption.Branch;
 
 			_writer = writer;
-			_paintingService = new DataPaintingService(_modelLookupService, _writer);
+			var executor = new ExecuteSignatureExecutor(_writer);
+            _paintingService = new DataPaintingService(_modelLookupService, executor);
 
 			WriteTestCommand = new RelayCommand(WriteTest);
 

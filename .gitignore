@@ -369,5 +369,11 @@ Documentation/
 # Logging
 Logs/
 
+# Unit Testing
+UnitTests/
+
 # Ignore Bundle\Contents
 /NavisLegacyPlugin.bundle/Contents/NavisLegacyPlugin.dll
+
+
+
