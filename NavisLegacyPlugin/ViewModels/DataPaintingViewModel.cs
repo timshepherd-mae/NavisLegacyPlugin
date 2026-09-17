@@ -17,6 +17,7 @@ using NavisLegacyPlugin.Services.Lookups;
 using NavisLegacyPlugin.Services.DataSources;
 using NavisLegacyPlugin.Services.Execution;
 using NavisLegacyPlugin.UI;
+using NavisLegacyPlugin.Services.SelectionSets;
 
 namespace NavisLegacyPlugin.ViewModels
 {
@@ -26,8 +27,9 @@ namespace NavisLegacyPlugin.ViewModels
 		private readonly CsvDataService _csvService = new CsvDataService();
 		private readonly ModelLookupService _modelLookupService = new ModelLookupService();
 		private readonly DataPaintingService _paintingService;
+		private readonly SelectionSetPathResolver _selectionSetResolver = new SelectionSetPathResolver();
 
-		private string _synchroDataFilePath = string.Empty;
+        private string _synchroDataFilePath = string.Empty;
 		public string SynchroDataFilePath
         {
             get => _synchroDataFilePath;
@@ -231,7 +233,7 @@ namespace NavisLegacyPlugin.ViewModels
 			try
 			{
 				IsBusy = true;
-				Status = "Executing RID transfer...";
+				Status = "Resolving SOURCE and TARGET Selection Sets...";
 
 				var result = await ExecuteSelectionTransferAsync();
 
@@ -252,9 +254,17 @@ namespace NavisLegacyPlugin.ViewModels
 		private async System.Threading.Tasks.Task<(int matched, int unmatched)> ExecuteSelectionTransferAsync()
 		{
 
-			var table = BuildSelectionDataTable(CollectionA);
+            var document = Application.ActiveDocument;
 
-			for (int i = table.Rows.Count - 1; i >= 0; i--)
+            var sourceItems =
+                _selectionSetResolver.ResolveRequired(
+                    document,
+                    DataTransferSelectionSetNames.SourcePath);
+
+            var table =
+                BuildSelectionDataTable(sourceItems);
+
+            for (int i = table.Rows.Count - 1; i >= 0; i--)
 			{
 				var rid = table.Rows[i]["MAE-4D.RID"]?.ToString();
 
@@ -264,9 +274,15 @@ namespace NavisLegacyPlugin.ViewModels
 				}
 			}
 
-			var lookup = BuildSelectionLookup(CollectionB);
+            var targetItems =
+                _selectionSetResolver.ResolveRequired(
+                    document,
+                    DataTransferSelectionSetNames.TargetPath);
 
-			var dataSource = new InMemoryDataSource(table);
+            var lookup =
+                BuildSelectionLookup(targetItems);
+
+            var dataSource = new InMemoryDataSource(table);
 
 			var mapping = new MappingConfig
 			{
