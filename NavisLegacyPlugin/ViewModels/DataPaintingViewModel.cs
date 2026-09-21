@@ -230,8 +230,9 @@ namespace NavisLegacyPlugin.ViewModels
 
 		private async void TransferRid()
 		{
-			try
-			{
+
+            try
+            {
 				IsBusy = true;
 				Status = "Resolving SOURCE and TARGET Selection Sets...";
 
@@ -305,12 +306,18 @@ namespace NavisLegacyPlugin.ViewModels
 				ProgressPercent = new Progress<int>(p => ProgressPercent = p)
 			};
 
+            var selectionSets = new ExecutionSelectionSets(
+                DataTransferSelectionSetNames.SourcePath,
+                DataTransferSelectionSetNames.TargetPath,
+                DataTransferSelectionSetNames.ExportPath);
+
 			return await _paintingService.ExecuteAsync(
 				dataSource,
 				mapping,
 				lookup,
 				writeConfig,
-				progressConfig);
+				progressConfig,
+                selectionSets);
 		}
 
 		private Dictionary<string, ModelItem> BuildSelectionLookup(ModelItemCollection selection)
@@ -695,3 +702,5 @@ namespace NavisLegacyPlugin.ViewModels
 
 	}
 }
+
+

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
@@ -6,16 +6,40 @@ using System.Linq;
 using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Models.Scopes;
+using NavisLegacyPlugin.Services.SelectionSets;
 
 namespace NavisLegacyPlugin.Services.Execution
 {
     public sealed class ExecuteSignatureExecutor
     {
         private readonly ComPropertyWriteService _writer;
+        private readonly IDataTransferHierarchyValidator _hierarchyValidator;
+        private readonly ITransferScopeResolver _scopeResolver;
 
         public ExecuteSignatureExecutor(ComPropertyWriteService writer)
+            : this(
+                writer,
+                new DataTransferHierarchyValidator(
+                    new NavisSelectionSetProvider()),
+                new NavisScopeResolver())
         {
-            _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+        }
+
+        public ExecuteSignatureExecutor(
+            ComPropertyWriteService writer,
+            IDataTransferHierarchyValidator hierarchyValidator,
+            ITransferScopeResolver scopeResolver)
+        {
+            if (writer == null)
+                throw new ArgumentNullException(nameof(writer));
+            if (hierarchyValidator == null)
+                throw new ArgumentNullException(nameof(hierarchyValidator));
+            if (scopeResolver == null)
+                throw new ArgumentNullException(nameof(scopeResolver));
+            _writer = writer;
+            _hierarchyValidator = hierarchyValidator;
+            _scopeResolver = scopeResolver;
         }
 
         public async Task<ExecuteResult> ExecuteAsync(
@@ -39,7 +63,56 @@ namespace NavisLegacyPlugin.Services.Execution
 
             Debug.WriteLine(">>> USING EXECUTESIGNATURE PATH <<<");
 
+            ScopeResolution sourceScope = null;
+            ScopeResolution targetScope = null;
+
+            if (signature.SelectionSets != null)
+            {
+                Document document = Application.ActiveDocument;
+                ValidateRequiredScope(document, DataTransferSelectionSetNames.Source);
+                ValidateRequiredScope(document, DataTransferSelectionSetNames.Target);
+
+                sourceScope = _scopeResolver.Resolve(
+                    document,
+                    new ScopeDefinition(
+                        TransferScopeType.Source,
+                        new CurrentDocumentLocation(),
+                        signature.SelectionSets.SourcePath));
+
+                targetScope = _scopeResolver.Resolve(
+                    document,
+                    new ScopeDefinition(
+                        TransferScopeType.Target,
+                        new CurrentDocumentLocation(),
+                        signature.SelectionSets.TargetPath));
+
+                Debug.WriteLine("Resolved SOURCE items: " + sourceScope.ItemCount);
+                Debug.WriteLine("Resolved TARGET items: " + targetScope.ItemCount);
+            }
+
             var lookupDict = await signature.LookupProvider.BuildLookupAsync(signature.ProgressConfig);
+
+            HashSet<Guid> sourceBoundary = sourceScope == null
+                ? null
+                : new HashSet<Guid>(
+                    sourceScope.Items.Select(item => item.InstanceGuid));
+
+            HashSet<Guid> targetBoundary = targetScope == null
+                ? null
+                : new HashSet<Guid>(
+                    targetScope.Items.Select(item => item.InstanceGuid));
+
+            if (sourceBoundary != null)
+            {
+                lookupDict = lookupDict
+                    .Where(pair =>
+                        pair.Value != null &&
+                        sourceBoundary.Contains(pair.Value.InstanceGuid))
+                    .ToDictionary(
+                        pair => pair.Key,
+                        pair => pair.Value,
+                        StringComparer.OrdinalIgnoreCase);
+            }
 
             int matched = 0;
             int unmatched = 0;
@@ -69,6 +142,13 @@ namespace NavisLegacyPlugin.Services.Execution
 
 
                 if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
+                {
+                    unmatched++;
+                    continue;
+                }
+
+                if (targetBoundary != null &&
+                    !targetBoundary.Contains(item.InstanceGuid))
                 {
                     unmatched++;
                     continue;
@@ -130,6 +210,13 @@ namespace NavisLegacyPlugin.Services.Execution
 
                 foreach (var targetItem in targetItems)
                 {
+                    if (targetBoundary != null &&
+                        !targetBoundary.Contains(targetItem.InstanceGuid))
+                    {
+                        skipped++;
+                        continue;
+                    }
+
                     foreach (var tab in entry.Value)
                     {
                         foreach (var prop in tab.Value)
@@ -218,6 +305,17 @@ namespace NavisLegacyPlugin.Services.Execution
                 CollectLeafItems(child, results);
         }
 
+
+        private void ValidateRequiredScope(
+            Document document,
+            string scopeName)
+        {
+            DataTransferHierarchyValidationResult result =
+                _hierarchyValidator.ValidateScope(document, scopeName);
+
+            if (!result.IsValid)
+                throw new InvalidOperationException(result.ToDisplayMessage());
+        }
 
     }
 }

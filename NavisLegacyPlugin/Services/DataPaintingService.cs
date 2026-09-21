@@ -54,21 +54,41 @@ namespace NavisLegacyPlugin.Services
 
 
         // Direct Lookup Path for ExecuteAsync with Dictionary Lookup
-        public async Task<(int matched, int unmatched)> ExecuteAsync(
+        public Task<(int matched, int unmatched)> ExecuteAsync(
 			IDataSource dataSource,
 			MappingConfig mapping,
 			Dictionary<string, ModelItem> lookup,
 			WriteConfig writeConfig,
 			ProgressConfig progress)
 		{
+            return ExecuteAsync(
+                dataSource,
+                mapping,
+                lookup,
+                writeConfig,
+                progress,
+                null);
+        }
 
+        // Selection Set-aware direct lookup path.
+        // EXPORT is carried as metadata for future external-source workflows;
+        // current-document workflows do not require it to be resolved.
+        public async Task<(int matched, int unmatched)> ExecuteAsync(
+            IDataSource dataSource,
+            MappingConfig mapping,
+            Dictionary<string, ModelItem> lookup,
+            WriteConfig writeConfig,
+            ProgressConfig progress,
+            ExecutionSelectionSets selectionSets)
+        {
             var signature =
                 new ExecuteSignature(
                     dataSource,
                     new MappingConfigStrategy(mapping),
                     new DictionaryLookupProvider(lookup),
                     writeConfig,
-                    progress);
+                    progress,
+                    selectionSets);
 
             var result =
                 await _executor.ExecuteAsync(signature);
@@ -82,3 +102,5 @@ namespace NavisLegacyPlugin.Services
 
     }
 }
+
+
