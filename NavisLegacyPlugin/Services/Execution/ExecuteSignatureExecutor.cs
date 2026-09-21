@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Models;
 using NavisLegacyPlugin.Models.Scopes;
+using NavisLegacyPlugin.Services.Collections;
 using NavisLegacyPlugin.Services.SelectionSets;
 
 namespace NavisLegacyPlugin.Services.Execution
@@ -16,20 +17,23 @@ namespace NavisLegacyPlugin.Services.Execution
         private readonly ComPropertyWriteService _writer;
         private readonly IDataTransferHierarchyValidator _hierarchyValidator;
         private readonly ITransferScopeResolver _scopeResolver;
+        private readonly ITransferScopeCollectionResolver _scopeCollectionResolver;
 
         public ExecuteSignatureExecutor(ComPropertyWriteService writer)
             : this(
                 writer,
                 new DataTransferHierarchyValidator(
                     new NavisSelectionSetProvider()),
-                new NavisScopeResolver())
+                new NavisScopeResolver(),
+                new TransferScopeCollectionResolver())
         {
         }
 
         public ExecuteSignatureExecutor(
             ComPropertyWriteService writer,
             IDataTransferHierarchyValidator hierarchyValidator,
-            ITransferScopeResolver scopeResolver)
+            ITransferScopeResolver scopeResolver,
+            ITransferScopeCollectionResolver scopeCollectionResolver)
         {
             if (writer == null)
                 throw new ArgumentNullException(nameof(writer));
@@ -37,9 +41,12 @@ namespace NavisLegacyPlugin.Services.Execution
                 throw new ArgumentNullException(nameof(hierarchyValidator));
             if (scopeResolver == null)
                 throw new ArgumentNullException(nameof(scopeResolver));
+            if (scopeCollectionResolver == null)
+                throw new ArgumentNullException(nameof(scopeCollectionResolver));
             _writer = writer;
             _hierarchyValidator = hierarchyValidator;
             _scopeResolver = scopeResolver;
+            _scopeCollectionResolver = scopeCollectionResolver;
         }
 
         public async Task<ExecuteResult> ExecuteAsync(
@@ -92,15 +99,27 @@ namespace NavisLegacyPlugin.Services.Execution
 
             var lookupDict = await signature.LookupProvider.BuildLookupAsync(signature.ProgressConfig);
 
-            HashSet<Guid> sourceBoundary = sourceScope == null
-                ? null
-                : new HashSet<Guid>(
-                    sourceScope.Items.Select(item => item.InstanceGuid));
+            IEnumerable<ModelItem> sourceItems = GetScopeItems(
+                sourceScope,
+                signature.SelectionSets == null
+                    ? null
+                    : signature.SelectionSets.SourceResolutionType);
 
-            HashSet<Guid> targetBoundary = targetScope == null
+            IEnumerable<ModelItem> targetItems = GetScopeItems(
+                targetScope,
+                signature.SelectionSets == null
+                    ? null
+                    : signature.SelectionSets.TargetResolutionType);
+
+            HashSet<Guid> sourceBoundary = sourceItems == null
                 ? null
                 : new HashSet<Guid>(
-                    targetScope.Items.Select(item => item.InstanceGuid));
+                    sourceItems.Select(item => item.InstanceGuid));
+
+            HashSet<Guid> targetBoundary = targetItems == null
+                ? null
+                : new HashSet<Guid>(
+                    targetItems.Select(item => item.InstanceGuid));
 
             if (sourceBoundary != null)
             {
@@ -195,20 +214,20 @@ namespace NavisLegacyPlugin.Services.Execution
             {
                 writeIndex++;
 
-                var targetItems = new List<ModelItem>();
+                var writeTargetItems = new List<ModelItem>();
 
                 if (signature.WriteConfig.WriteToLeafItems)
                 {
                     CollectLeafItems(
                         entry.Key,
-                        targetItems);
+                        writeTargetItems);
                 }
                 else
                 {
-                    targetItems.Add(entry.Key);
+                    writeTargetItems.Add(entry.Key);
                 }
 
-                foreach (var targetItem in targetItems)
+                foreach (var targetItem in writeTargetItems)
                 {
                     if (targetBoundary != null &&
                         !targetBoundary.Contains(targetItem.InstanceGuid))
@@ -305,6 +324,21 @@ namespace NavisLegacyPlugin.Services.Execution
                 CollectLeafItems(child, results);
         }
 
+
+        private IEnumerable<ModelItem> GetScopeItems(
+            ScopeResolution scopeResolution,
+            Models.Collections.CollectionResolutionType? resolutionType)
+        {
+            if (scopeResolution == null)
+                return null;
+
+            if (!resolutionType.HasValue)
+                return scopeResolution.Items;
+
+            return _scopeCollectionResolver.Resolve(
+                scopeResolution,
+                resolutionType.Value);
+        }
 
         private void ValidateRequiredScope(
             Document document,
