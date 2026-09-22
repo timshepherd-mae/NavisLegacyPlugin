@@ -19,6 +19,7 @@ using NavisLegacyPlugin.Services.DataSources;
 using NavisLegacyPlugin.Services.Execution;
 using NavisLegacyPlugin.UI;
 using NavisLegacyPlugin.Services.SelectionSets;
+using NavisLegacyPlugin.Services.Collections;
 
 namespace NavisLegacyPlugin.ViewModels
 {
@@ -279,10 +280,14 @@ namespace NavisLegacyPlugin.ViewModels
 
             var document = Application.ActiveDocument;
 
-            var sourceItems =
+            var sourceRoots =
                 _selectionSetResolver.ResolveRequired(
                     document,
                     DataTransferSelectionSetNames.SourcePath);
+
+            var sourceItems = ResolveTransferPopulation(
+                sourceRoots,
+                SourceResolutionType);
 
             var table =
                 BuildSelectionDataTable(sourceItems);
@@ -297,10 +302,14 @@ namespace NavisLegacyPlugin.ViewModels
 				}
 			}
 
-            var targetItems =
+            var targetRoots =
                 _selectionSetResolver.ResolveRequired(
                     document,
                     DataTransferSelectionSetNames.TargetPath);
+
+            var targetItems = ResolveTransferPopulation(
+                targetRoots,
+                TargetResolutionType);
 
             var lookup =
                 BuildSelectionLookup(targetItems);
@@ -344,6 +353,33 @@ namespace NavisLegacyPlugin.ViewModels
 				progressConfig,
                 selectionSets);
 		}
+
+        private static ModelItemCollection ResolveTransferPopulation(
+            IEnumerable<ModelItem> rootItems,
+            CollectionResolutionType? resolutionType)
+        {
+            var population = new ModelItemCollection();
+
+            if (rootItems == null)
+                return population;
+
+            if (!resolutionType.HasValue)
+            {
+                population.AddRange(rootItems);
+                return population;
+            }
+
+            IModelItemCollectionResolver resolver =
+                new ModelItemCollectionResolver();
+
+            CollectionResolutionResult result =
+                resolver.Resolve(rootItems);
+
+            population.AddRange(
+                result.GetItems(resolutionType.Value));
+
+            return population;
+        }
 
 		private Dictionary<string, ModelItem> BuildSelectionLookup(ModelItemCollection selection)
 		{

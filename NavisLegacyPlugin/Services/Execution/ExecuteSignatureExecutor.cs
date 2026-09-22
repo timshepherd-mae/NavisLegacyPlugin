@@ -93,11 +93,11 @@ namespace NavisLegacyPlugin.Services.Execution
                         new CurrentDocumentLocation(),
                         signature.SelectionSets.TargetPath));
 
-                Debug.WriteLine("Resolved SOURCE items: " + sourceScope.ItemCount);
-                Debug.WriteLine("Resolved TARGET items: " + targetScope.ItemCount);
             }
 
+
             var lookupDict = await signature.LookupProvider.BuildLookupAsync(signature.ProgressConfig);
+
 
             IEnumerable<ModelItem> sourceItems = GetScopeItems(
                 sourceScope,
@@ -113,15 +113,21 @@ namespace NavisLegacyPlugin.Services.Execution
                     : signature.SelectionSets.TargetResolutionType);
 
 
-            HashSet<Guid> sourceBoundary = sourceItems == null
-                ? null
-                : new HashSet<Guid>(
-                    sourceItems.Select(item => item.InstanceGuid));
+            List<ModelItem> resolvedSourceItems =
+                sourceItems == null ? null : sourceItems.ToList();
+            List<ModelItem> resolvedTargetItems =
+                targetItems == null ? null : targetItems.ToList();
 
-            HashSet<Guid> targetBoundary = targetItems == null
+
+            HashSet<Guid> sourceBoundary = resolvedSourceItems == null
                 ? null
                 : new HashSet<Guid>(
-                    targetItems.Select(item => item.InstanceGuid));
+                    resolvedSourceItems.Select(item => item.InstanceGuid));
+
+            HashSet<Guid> targetBoundary = resolvedTargetItems == null
+                ? null
+                : new HashSet<Guid>(
+                    resolvedTargetItems.Select(item => item.InstanceGuid));
 
             if (sourceBoundary != null)
             {
@@ -135,12 +141,14 @@ namespace NavisLegacyPlugin.Services.Execution
                         StringComparer.OrdinalIgnoreCase);
             }
 
+
             int matched = 0;
             int unmatched = 0;
             int written = 0;
             int skipped = 0;
 
             var table = await signature.DataSource.GetDataAsync(signature.ProgressConfig.ProgressText);
+
 
             var itemWriteMap =
                 new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
@@ -310,6 +318,7 @@ namespace NavisLegacyPlugin.Services.Execution
             signature.ProgressConfig.ProgressPercent?.Report(100);
             signature.ProgressConfig.ProgressText?.Report("Complete.");
 
+
             return new ExecuteResult(
                 matched,
                 unmatched,
@@ -333,41 +342,24 @@ namespace NavisLegacyPlugin.Services.Execution
         }
 
 
+        private static string FormatResolutionType(
+            Models.Collections.CollectionResolutionType? resolutionType)
+        {
+            return resolutionType.HasValue
+                ? resolutionType.Value.ToString()
+                : "<null: legacy direct-items path>";
+        }
+
         private IEnumerable<ModelItem> GetScopeItems(
             ScopeResolution scopeResolution,
             Models.Collections.CollectionResolutionType? resolutionType)
         {
-            if (scopeResolution == null)
-            {
-                Debug.WriteLine("GetScopeItems: scopeResolution is null.");
-                return null;
-            }
 
-            Debug.WriteLine(
-                "GetScopeItems: scope=" + scopeResolution.Definition.ScopeType +
-                " | explicit roots=" + scopeResolution.Items.Count +
-                " | requested type=" +
-                (resolutionType.HasValue
-                    ? resolutionType.Value.ToString()
-                    : "<null: legacy direct-items path>"));
-
-            if (!resolutionType.HasValue)
-            {
-                Debug.WriteLine(
-                    "GetScopeItems: returning unexpanded ScopeResolution.Items. " +
-                    "Count=" + scopeResolution.Items.Count);
-                return scopeResolution.Items;
-            }
 
             IReadOnlyCollection<ModelItem> resolvedItems =
                 _scopeCollectionResolver.Resolve(
                     scopeResolution,
                     resolutionType.Value);
-
-            Debug.WriteLine(
-                "GetScopeItems: returning recursively resolved " +
-                resolutionType.Value +
-                " collection. Count=" + resolvedItems.Count);
 
             return resolvedItems;
         }
@@ -385,5 +377,3 @@ namespace NavisLegacyPlugin.Services.Execution
 
     }
 }
-
-
