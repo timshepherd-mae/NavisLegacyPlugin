@@ -218,12 +218,18 @@ namespace NavisLegacyPlugin.Services.Execution
 
                 if (signature.WriteConfig.WriteToLeafItems)
                 {
-                    CollectLeafItems(
-                        entry.Key,
-                        writeTargetItems);
+                    IModelItemCollectionResolver writeResolver =
+                        new ModelItemCollectionResolver();
+                    Models.Collections.CollectionResolutionResult writeResult =
+                        writeResolver.Resolve(new[] { entry.Key });
+
+                    writeTargetItems.AddRange(
+                        writeResult.GetItems(
+                            Models.Collections.CollectionResolutionType.Leaf));
                 }
                 else
                 {
+                    // Legacy compatibility: false means the matched item only.
                     writeTargetItems.Add(entry.Key);
                 }
 
