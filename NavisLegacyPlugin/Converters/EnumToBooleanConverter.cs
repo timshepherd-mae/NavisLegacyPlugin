@@ -14,12 +14,27 @@ namespace NavisLegacyPlugin.Converters
 			return value.ToString().Equals(parameter.ToString(), StringComparison.OrdinalIgnoreCase);
 		}
 
-		public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-		{
-			if ((bool)value)
-				return Enum.Parse(targetType, parameter.ToString());
 
-			return Binding.DoNothing;
-		}
-	}
+        public object ConvertBack(
+            object value,
+            Type targetType,
+            object parameter,
+            CultureInfo culture)
+        {
+            if ((bool)value)
+            {
+                Type enumType =
+                    Nullable.GetUnderlyingType(targetType)
+                    ?? targetType;
+
+                return Enum.Parse(
+                    enumType,
+                    parameter.ToString());
+            }
+
+            return Binding.DoNothing;
+        }
+
+
+    }
 }

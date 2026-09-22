@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Data;
@@ -13,6 +13,7 @@ using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Services;
 using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Models.Collections;
 using NavisLegacyPlugin.Services.Lookups;
 using NavisLegacyPlugin.Services.DataSources;
 using NavisLegacyPlugin.Services.Execution;
@@ -121,6 +122,27 @@ namespace NavisLegacyPlugin.ViewModels
 		{
 			get => _modelDepth;
 			set { _modelDepth = value; OnPropertyChanged(); }
+		}
+
+		private CollectionResolutionType? _sourceResolutionType;
+		public CollectionResolutionType? SourceResolutionType
+		{
+			get => _sourceResolutionType;
+			set { _sourceResolutionType = value; OnPropertyChanged(); }
+		}
+
+		private CollectionResolutionType? _targetResolutionType;
+		public CollectionResolutionType? TargetResolutionType
+		{
+			get => _targetResolutionType;
+			set { _targetResolutionType = value; OnPropertyChanged(); }
+		}
+
+		private CollectionResolutionType? _exportResolutionType;
+		public CollectionResolutionType? ExportResolutionType
+		{
+			get => _exportResolutionType;
+			set { _exportResolutionType = value; OnPropertyChanged(); }
 		}
 
 		private bool _overwrite = false;
@@ -309,7 +331,10 @@ namespace NavisLegacyPlugin.ViewModels
             var selectionSets = new ExecutionSelectionSets(
                 DataTransferSelectionSetNames.SourcePath,
                 DataTransferSelectionSetNames.TargetPath,
-                DataTransferSelectionSetNames.ExportPath);
+                DataTransferSelectionSetNames.ExportPath,
+                SourceResolutionType,
+                TargetResolutionType,
+                ExportResolutionType);
 
 			return await _paintingService.ExecuteAsync(
 				dataSource,
@@ -702,5 +727,3 @@ namespace NavisLegacyPlugin.ViewModels
 
 	}
 }
-
-

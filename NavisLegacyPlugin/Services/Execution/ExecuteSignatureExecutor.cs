@@ -105,11 +105,13 @@ namespace NavisLegacyPlugin.Services.Execution
                     ? null
                     : signature.SelectionSets.SourceResolutionType);
 
+
             IEnumerable<ModelItem> targetItems = GetScopeItems(
                 targetScope,
                 signature.SelectionSets == null
                     ? null
                     : signature.SelectionSets.TargetResolutionType);
+
 
             HashSet<Guid> sourceBoundary = sourceItems == null
                 ? null
@@ -336,14 +338,38 @@ namespace NavisLegacyPlugin.Services.Execution
             Models.Collections.CollectionResolutionType? resolutionType)
         {
             if (scopeResolution == null)
+            {
+                Debug.WriteLine("GetScopeItems: scopeResolution is null.");
                 return null;
+            }
+
+            Debug.WriteLine(
+                "GetScopeItems: scope=" + scopeResolution.Definition.ScopeType +
+                " | explicit roots=" + scopeResolution.Items.Count +
+                " | requested type=" +
+                (resolutionType.HasValue
+                    ? resolutionType.Value.ToString()
+                    : "<null: legacy direct-items path>"));
 
             if (!resolutionType.HasValue)
+            {
+                Debug.WriteLine(
+                    "GetScopeItems: returning unexpanded ScopeResolution.Items. " +
+                    "Count=" + scopeResolution.Items.Count);
                 return scopeResolution.Items;
+            }
 
-            return _scopeCollectionResolver.Resolve(
-                scopeResolution,
-                resolutionType.Value);
+            IReadOnlyCollection<ModelItem> resolvedItems =
+                _scopeCollectionResolver.Resolve(
+                    scopeResolution,
+                    resolutionType.Value);
+
+            Debug.WriteLine(
+                "GetScopeItems: returning recursively resolved " +
+                resolutionType.Value +
+                " collection. Count=" + resolvedItems.Count);
+
+            return resolvedItems;
         }
 
         private void ValidateRequiredScope(
@@ -359,3 +385,5 @@ namespace NavisLegacyPlugin.Services.Execution
 
     }
 }
+
+

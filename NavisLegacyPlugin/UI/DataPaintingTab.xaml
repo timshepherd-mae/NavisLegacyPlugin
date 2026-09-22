@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="NavisLegacyPlugin.UI.DataPaintingTab"
+<UserControl x:Class="NavisLegacyPlugin.UI.DataPaintingTab"
             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 
@@ -17,6 +17,7 @@
 
 		<Grid.RowDefinitions>
 			<RowDefinition Height="Auto"/>			<!-- Model Depth -->
+			<RowDefinition Height="Auto"/>			<!-- Collection Resolution -->
 			<RowDefinition Height="Auto"/>			<!-- Overwrite -->
 			<RowDefinition Height="Auto"/>			<!-- Get Model Collections -->
 			<RowDefinition Height="Auto"/>			<!-- Write Test -->
@@ -38,8 +39,40 @@
 			</StackPanel>
 		</GroupBox>
 
+		<!-- Phase 5.6 Collection Resolution UX -->
+		<GroupBox Grid.Row="1" Header="Selection Set Resolution" Margin="5">
+			<Grid>
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="*"/>
+					<ColumnDefinition Width="*"/>
+					<ColumnDefinition Width="*"/>
+				</Grid.ColumnDefinitions>
+
+				<StackPanel Grid.Column="0" Margin="5">
+					<TextBlock Text="SOURCE" FontWeight="Bold"/>
+					<RadioButton GroupName="SourceResolution" Content="All" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
+					<RadioButton GroupName="SourceResolution" Content="Branch" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
+					<RadioButton GroupName="SourceResolution" Content="Leaf" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
+				</StackPanel>
+
+				<StackPanel Grid.Column="1" Margin="5">
+					<TextBlock Text="TARGET" FontWeight="Bold"/>
+					<RadioButton GroupName="TargetResolution" Content="All" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
+					<RadioButton GroupName="TargetResolution" Content="Branch" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
+					<RadioButton GroupName="TargetResolution" Content="Leaf" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
+				</StackPanel>
+
+				<StackPanel Grid.Column="2" Margin="5">
+					<TextBlock Text="EXPORT" FontWeight="Bold"/>
+					<RadioButton GroupName="ExportResolution" Content="All" IsChecked="{Binding ExportResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
+					<RadioButton GroupName="ExportResolution" Content="Branch" IsChecked="{Binding ExportResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
+					<RadioButton GroupName="ExportResolution" Content="Leaf" IsChecked="{Binding ExportResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
+				</StackPanel>
+			</Grid>
+		</GroupBox>
+
 		<!-- Overwrite -->
-		<GroupBox Grid.Row="1" Header="Overwrite" Margin="5">
+		<GroupBox Grid.Row="2" Header="Overwrite" Margin="5">
 			<StackPanel>
 				<RadioButton Content="Yes"
                      IsChecked="{Binding Overwrite, Mode=TwoWay}" />
@@ -50,7 +83,7 @@
 		</GroupBox>
 
 		<!-- Get Model Collections -->
-		<StackPanel Grid.Row="2" Orientation="Vertical" Margin="0">
+		<StackPanel Grid.Row="3" Orientation="Vertical" Margin="0">
 
 			<!-- ✅ COLLECTION A -->
 			<GroupBox Header="Collection A" Margin="5">
@@ -104,7 +137,7 @@
 
 
 		<!-- Write Section -->
-		<GroupBox Grid.Row="3" Header="Write Property" Margin="5">
+		<GroupBox Grid.Row="4" Header="Write Property" Margin="5">
 			<Grid Margin="5">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="140"/>
@@ -160,7 +193,7 @@
 		</GroupBox>
 
         <!-- Synchro Data File + Get Synchro Data button -->
-        <StackPanel Grid.Row="4"
+        <StackPanel Grid.Row="5"
             Orientation="Vertical"
             Margin="0,10,0,0">
 
@@ -196,7 +229,7 @@
         
         
         <!-- Transfer RID button -->
-        <Button Grid.Row="5"
+        <Button Grid.Row="6"
 			Content="Transfer RID A → B"
 			Width="160"
 			Margin="0,10,0,0"
@@ -205,7 +238,7 @@
 		
 		
 		<!-- Progress bar -->
-		<ProgressBar Grid.Row="6"
+		<ProgressBar Grid.Row="7"
 				 Height="18"
 				 Margin="0,10,0,0"
 				 Minimum="0"
@@ -213,7 +246,7 @@
 				 Value="{Binding ProgressPercent}" />
 
 		<!-- Progress text -->
-		<TextBlock Grid.Row="7"
+		<TextBlock Grid.Row="9"
 			   Margin="0,6,0,0"
 			   Text="{Binding ProgressText}" />
 

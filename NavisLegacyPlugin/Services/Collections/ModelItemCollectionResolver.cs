@@ -2,6 +2,7 @@ using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Models.Collections;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace NavisLegacyPlugin.Services.Collections
@@ -20,7 +21,7 @@ namespace NavisLegacyPlugin.Services.Collections
 
             foreach (ModelItem rootItem in rootItems)
             {
-                AddRecursively(rootItem, allItems);
+                AddRecursively(rootItem, allItems, 0);
             }
 
             List<ModelItem> all = allItems.Values.ToList();
@@ -43,20 +44,37 @@ namespace NavisLegacyPlugin.Services.Collections
 
         private static void AddRecursively(
             ModelItem item,
-            IDictionary<Guid, ModelItem> uniqueItems)
+            IDictionary<Guid, ModelItem> uniqueItems,
+            int depth)
         {
             if (item == null)
+            {
+                Debug.WriteLine("RESOLVE | depth=" + depth + " | <null item>");
                 return;
+            }
 
             Guid key = item.InstanceGuid;
             if (uniqueItems.ContainsKey(key))
+            {
+                Debug.WriteLine(
+                    "RESOLVE | depth=" + depth +
+                    " | DUPLICATE SKIPPED | " + item.DisplayName +
+                    " | Guid=" + key);
                 return;
+            }
+
+            int childCount = item.Children.Count();
+            Debug.WriteLine(
+                "RESOLVE | depth=" + depth +
+                " | " + item.DisplayName +
+                " | Guid=" + key +
+                " | DirectChildren=" + childCount);
 
             uniqueItems.Add(key, item);
 
             foreach (ModelItem child in item.Children)
             {
-                AddRecursively(child, uniqueItems);
+                AddRecursively(child, uniqueItems, depth + 1);
             }
         }
 
@@ -71,3 +89,5 @@ namespace NavisLegacyPlugin.Services.Collections
         }
     }
 }
+
+
