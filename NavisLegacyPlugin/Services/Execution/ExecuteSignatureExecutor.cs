@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Models;
 using NavisLegacyPlugin.Models.Scopes;
+using NavisLegacyPlugin.Models.ExternalSources;
 using NavisLegacyPlugin.Services.Collections;
 using NavisLegacyPlugin.Services.SelectionSets;
 
@@ -49,8 +50,19 @@ namespace NavisLegacyPlugin.Services.Execution
             _scopeCollectionResolver = scopeCollectionResolver;
         }
 
-        public async Task<ExecuteResult> ExecuteAsync(
+        public Task<ExecuteResult> ExecuteAsync(
             ExecuteSignature signature)
+        {
+            return ExecuteAsync(signature, null);
+        }
+
+        /// <summary>
+        /// Executes the existing pipeline with an optional host-side external SOURCE boundary.
+        /// Existing callers use the unchanged overload above and retain current behaviour.
+        /// </summary>
+        public async Task<ExecuteResult> ExecuteAsync(
+            ExecuteSignature signature,
+            ExternalSourcePopulation externalSourcePopulation)
         {
 
             if (signature == null)
@@ -76,16 +88,18 @@ namespace NavisLegacyPlugin.Services.Execution
             if (signature.SelectionSets != null)
             {
                 Document document = Application.ActiveDocument;
-                ValidateRequiredScope(document, DataTransferSelectionSetNames.Source);
+                if (externalSourcePopulation == null)
+                {
+                    ValidateRequiredScope(document, DataTransferSelectionSetNames.Source);
+                    sourceScope = _scopeResolver.Resolve(
+                        document,
+                        new ScopeDefinition(
+                            TransferScopeType.Source,
+                            new CurrentDocumentLocation(),
+                            signature.SelectionSets.SourcePath));
+                }
+
                 ValidateRequiredScope(document, DataTransferSelectionSetNames.Target);
-
-                sourceScope = _scopeResolver.Resolve(
-                    document,
-                    new ScopeDefinition(
-                        TransferScopeType.Source,
-                        new CurrentDocumentLocation(),
-                        signature.SelectionSets.SourcePath));
-
                 targetScope = _scopeResolver.Resolve(
                     document,
                     new ScopeDefinition(
@@ -119,10 +133,12 @@ namespace NavisLegacyPlugin.Services.Execution
                 targetItems == null ? null : targetItems.ToList();
 
 
-            HashSet<Guid> sourceBoundary = resolvedSourceItems == null
-                ? null
-                : new HashSet<Guid>(
-                    resolvedSourceItems.Select(item => item.InstanceGuid));
+            HashSet<Guid> sourceBoundary = externalSourcePopulation != null
+                ? new HashSet<Guid>(externalSourcePopulation.InstanceGuids)
+                : resolvedSourceItems == null
+                    ? null
+                    : new HashSet<Guid>(
+                        resolvedSourceItems.Select(item => item.InstanceGuid));
 
             HashSet<Guid> targetBoundary = resolvedTargetItems == null
                 ? null
@@ -354,7 +370,13 @@ namespace NavisLegacyPlugin.Services.Execution
             ScopeResolution scopeResolution,
             Models.Collections.CollectionResolutionType? resolutionType)
         {
+            if (scopeResolution == null)
+                return null;
 
+            // Preserve the legacy/default population when no explicit
+            // All/Branch/Leaf resolution has been selected.
+            if (!resolutionType.HasValue)
+                return scopeResolution.Items;
 
             IReadOnlyCollection<ModelItem> resolvedItems =
                 _scopeCollectionResolver.Resolve(
@@ -377,3 +399,5 @@ namespace NavisLegacyPlugin.Services.Execution
 
     }
 }
+
+

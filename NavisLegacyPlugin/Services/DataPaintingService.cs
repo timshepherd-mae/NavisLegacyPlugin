@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Models.ExternalSources;
+using NavisLegacyPlugin.Services.ExternalSources;
 using NavisLegacyPlugin.Services.DataSources;
 using NavisLegacyPlugin.Services.Execution;
 using NavisLegacyPlugin.Services.Lookups;
@@ -99,8 +101,36 @@ namespace NavisLegacyPlugin.Services
         }
 
 
+        /// <summary>
+        /// Phase 6.4 external SOURCE injection path. The existing ExecuteSignature
+        /// contract and all existing ExecuteAsync overloads remain unchanged.
+        /// </summary>
+        public async Task<(int matched, int unmatched)> ExecuteExternalSourceAsync(
+            ExternalExportPopulationResponse response,
+            MappingConfig mapping,
+            Dictionary<string, ModelItem> targetLookup,
+            WriteConfig writeConfig,
+            ProgressConfig progress,
+            ExecutionSelectionSets selectionSets)
+        {
+            var adapter = new ExternalSourcePopulationAdapter();
+            ExternalSourcePopulation population = adapter.Adapt(response);
+            IDataSource dataSource = new InMemoryDataSource(adapter.ToDataTable(population));
+
+            var signature = new ExecuteSignature(
+                dataSource,
+                new MappingConfigStrategy(mapping),
+                new DictionaryLookupProvider(targetLookup),
+                writeConfig,
+                progress,
+                selectionSets);
+
+            ExecuteResult result = await _executor.ExecuteAsync(signature, population);
+            return (result.Matched, result.Unmatched);
+        }
+
+
+
 
     }
 }
-
-

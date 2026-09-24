@@ -657,7 +657,8 @@ namespace NavisLegacyPlugin.ViewModels
 			var hasA = CollectionA != null && CollectionA.Count > 0;
 			var hasB = CollectionB != null && CollectionB.Count > 0;
 
-			CanTransferRid = hasA && hasB;
+			// CanTransferRid = hasA && hasB;
+			CanTransferRid = true;
 		}
 
 		private DataTable BuildSelectionADataTable()
