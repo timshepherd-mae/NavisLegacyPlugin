@@ -22,6 +22,7 @@
 			<RowDefinition Height="Auto"/>			<!-- Get Model Collections -->
 			<RowDefinition Height="Auto"/>			<!-- Write Test -->
 			<RowDefinition Height="Auto"/>			<!-- GetSynchroData -->
+			<RowDefinition Height="Auto"/>			<!-- External SOURCE -->
 			<RowDefinition Height="Auto"/>			<!-- Transfer RID -->
 			<RowDefinition Height="Auto"/>			<!-- Progress bar -->
 			<RowDefinition Height="Auto"/>			<!-- Progress text -->
@@ -228,8 +229,45 @@
         </StackPanel>
         
         
+        <!-- External SOURCE -->
+        <GroupBox Grid.Row="6" Header="External SOURCE" Margin="5,10,5,0">
+            <StackPanel>
+                <Grid Margin="5,5,5,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0"
+                             MinWidth="320"
+                             Height="24"
+                             VerticalContentAlignment="Center"
+                             Text="{Binding ExternalSourceFilePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="External NWD/NWF source file"
+                             IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+                    <Button Grid.Column="2"
+                            Content="Browse"
+                            Width="110"
+                            Command="{Binding BrowseExternalSourceFileCommand}"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+                </Grid>
+                <TextBox Margin="5"
+                         Height="24"
+                         VerticalContentAlignment="Center"
+                         Text="{Binding ExternalExportSetName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Named Selection Set beneath MAE-4D / DATA-TRANSFER / EXPORT"
+                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+                <Button Content="Transfer External SOURCE"
+                        Width="180"
+                        Margin="5,0,5,5"
+                        HorizontalAlignment="Left"
+                        Command="{Binding TransferExternalSourceCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+            </StackPanel>
+        </GroupBox>
+
         <!-- Transfer RID button -->
-        <Button Grid.Row="6"
+        <Button Grid.Row="7"
 			Content="Transfer RID A → B"
 			Width="160"
 			Margin="0,10,0,0"
@@ -238,7 +276,7 @@
 		
 		
 		<!-- Progress bar -->
-		<ProgressBar Grid.Row="7"
+		<ProgressBar Grid.Row="8"
 				 Height="18"
 				 Margin="0,10,0,0"
 				 Minimum="0"
@@ -246,12 +284,12 @@
 				 Value="{Binding ProgressPercent}" />
 
 		<!-- Progress text -->
-		<TextBlock Grid.Row="9"
+		<TextBlock Grid.Row="10"
 			   Margin="0,6,0,0"
 			   Text="{Binding ProgressText}" />
 
 		<!-- Status -->
-		<TextBlock Grid.Row="8"
+		<TextBlock Grid.Row="9"
                Margin="0,10,0,0"
                Text="{Binding Status}" />
 

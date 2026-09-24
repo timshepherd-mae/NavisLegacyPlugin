@@ -14,12 +14,14 @@ using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Services;
 using NavisLegacyPlugin.Models;
 using NavisLegacyPlugin.Models.Collections;
+using NavisLegacyPlugin.Models.ExternalSources;
 using NavisLegacyPlugin.Services.Lookups;
 using NavisLegacyPlugin.Services.DataSources;
 using NavisLegacyPlugin.Services.Execution;
 using NavisLegacyPlugin.UI;
 using NavisLegacyPlugin.Services.SelectionSets;
 using NavisLegacyPlugin.Services.Collections;
+using NavisLegacyPlugin.Services.ExternalSources;
 
 namespace NavisLegacyPlugin.ViewModels
 {
@@ -30,6 +32,31 @@ namespace NavisLegacyPlugin.ViewModels
 		private readonly ModelLookupService _modelLookupService = new ModelLookupService();
 		private readonly DataPaintingService _paintingService;
 		private readonly SelectionSetPathResolver _selectionSetResolver = new SelectionSetPathResolver();
+        private readonly IExternalExportPopulationService _externalExportPopulationService;
+
+        private string _externalSourceFilePath = string.Empty;
+        public string ExternalSourceFilePath
+        {
+            get { return _externalSourceFilePath; }
+            set
+            {
+                if (_externalSourceFilePath == value) return;
+                _externalSourceFilePath = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private string _externalExportSetName = string.Empty;
+        public string ExternalExportSetName
+        {
+            get { return _externalExportSetName; }
+            set
+            {
+                if (_externalExportSetName == value) return;
+                _externalExportSetName = value;
+                OnPropertyChanged();
+            }
+        }
 
         private string _synchroDataFilePath = string.Empty;
 		public string SynchroDataFilePath
@@ -68,6 +95,8 @@ namespace NavisLegacyPlugin.ViewModels
 		public ICommand BrowseSynchroDataFileCommand {  get; }
 		public ICommand GetSynchroDataCommand { get; }
 		public ICommand TransferRidCommand { get; }
+        public ICommand BrowseExternalSourceFileCommand { get; }
+        public ICommand TransferExternalSourceCommand { get; }
 
 
 		public ICommand CaptureSelectionACommand => new RelayCommand(CaptureSelectionA);
@@ -182,6 +211,7 @@ namespace NavisLegacyPlugin.ViewModels
 			_writer = writer;
 			var executor = new ExecuteSignatureExecutor(_writer);
             _paintingService = new DataPaintingService(_modelLookupService, executor);
+            _externalExportPopulationService = new ExternalExportPopulationService();
 
 			WriteTestCommand = new RelayCommand(WriteTest);
 
@@ -197,6 +227,8 @@ namespace NavisLegacyPlugin.ViewModels
 			UpdateTransferState();
 
 			TransferRidCommand = new RelayCommand(TransferRid, () => CanTransferRid);
+            BrowseExternalSourceFileCommand = new RelayCommand(BrowseExternalSourceFile);
+            TransferExternalSourceCommand = new RelayCommand(TransferExternalSource);
 		}
 
 		private void WriteTest()
@@ -406,6 +438,119 @@ namespace NavisLegacyPlugin.ViewModels
 					g => g.First(),
 					StringComparer.OrdinalIgnoreCase);
 		}
+
+        private void BrowseExternalSourceFile()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "Select external Navisworks source",
+                Filter = "Navisworks files (*.nwd;*.nwf)|*.nwd;*.nwf|All files (*.*)|*.*",
+                CheckFileExists = true
+            };
+
+            if (dialog.ShowDialog() == true)
+                ExternalSourceFilePath = dialog.FileName;
+        }
+
+        private async void TransferExternalSource()
+        {
+            if (string.IsNullOrWhiteSpace(ExternalSourceFilePath) ||
+                !File.Exists(ExternalSourceFilePath))
+            {
+                Status = "Select a valid external NWD/NWF source file.";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(ExternalExportSetName))
+            {
+                Status = "Enter the EXPORT Selection Set name.";
+                return;
+            }
+
+            try
+            {
+                IsBusy = true;
+                ProgressPercent = 0;
+                ProgressText = "Opening external source...";
+                Status = "Extracting external EXPORT population...";
+
+                CollectionResolutionType resolution =
+                    ExportResolutionType ?? CollectionResolutionType.All;
+
+                var request = new ExternalExportPopulationRequest(
+                    ExternalSourceFilePath,
+                    ExternalExportSetName.Trim(),
+                    resolution);
+
+                ExternalExportPopulationResponse response = await
+                    System.Threading.Tasks.Task.Run(
+                        () => _externalExportPopulationService.Resolve(request));
+
+                var document = Autodesk.Navisworks.Api.Application.ActiveDocument;
+                var targetRoots = _selectionSetResolver.ResolveRequired(
+                    document,
+                    DataTransferSelectionSetNames.TargetPath);
+                var targetItems = ResolveTransferPopulation(
+                    targetRoots,
+                    TargetResolutionType);
+                var targetLookup = BuildSelectionLookup(targetItems);
+
+                var mapping = new MappingConfig
+                {
+                    ColumnMap = new Dictionary<string, string>
+                    {
+                        { "InstanceGuid", "InstanceGuid" },
+                        { "MAE-4D.RID", "MAE-4D.RID" }
+                    },
+                    MatchColumn = "InstanceGuid"
+                };
+
+                var writeConfig = new WriteConfig
+                {
+                    WriteToLeafItems = string.Equals(
+                        WriteMode,
+                        "Leaf",
+                        StringComparison.OrdinalIgnoreCase),
+                    Overwrite = Overwrite
+                };
+
+                var progressConfig = new ProgressConfig
+                {
+                    ProgressText = new Progress<string>(t => ProgressText = t),
+                    ProgressPercent = new Progress<int>(p => ProgressPercent = p)
+                };
+
+                var selectionSets = new ExecutionSelectionSets(
+                    DataTransferSelectionSetNames.SourcePath,
+                    DataTransferSelectionSetNames.TargetPath,
+                    DataTransferSelectionSetNames.ExportPath,
+                    resolution,
+                    TargetResolutionType,
+                    resolution);
+
+                var result = await _paintingService.ExecuteExternalSourceAsync(
+                    response,
+                    mapping,
+                    targetLookup,
+                    writeConfig,
+                    progressConfig,
+                    selectionSets);
+
+                Status = string.Format(
+                    "External transfer complete. Matched: {0}, Unmatched: {1}",
+                    result.matched,
+                    result.unmatched);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+                Status = "External transfer failed: " + ex.Message;
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
 
         private void BrowseSynchroDataFile()
         {
