@@ -10,6 +10,7 @@ using NavisLegacyPlugin.Models.Scopes;
 using NavisLegacyPlugin.Models.ExternalSources;
 using NavisLegacyPlugin.Services.Collections;
 using NavisLegacyPlugin.Services.SelectionSets;
+using NavisLegacyPlugin.Services.Matching;
 
 namespace NavisLegacyPlugin.Services.Execution
 {
@@ -60,9 +61,21 @@ namespace NavisLegacyPlugin.Services.Execution
         /// Executes the existing pipeline with an optional host-side external SOURCE boundary.
         /// Existing callers use the unchanged overload above and retain current behaviour.
         /// </summary>
-        public async Task<ExecuteResult> ExecuteAsync(
+        public Task<ExecuteResult> ExecuteAsync(
             ExecuteSignature signature,
             ExternalSourcePopulation externalSourcePopulation)
+        {
+            return ExecuteAsync(signature, externalSourcePopulation, null);
+        }
+
+        /// <summary>
+        /// Executes with an optional ordered row matcher. Existing overloads retain
+        /// the Phase 6.4 single-value lookup behaviour.
+        /// </summary>
+        public async Task<ExecuteResult> ExecuteAsync(
+            ExecuteSignature signature,
+            ExternalSourcePopulation externalSourcePopulation,
+            IRowMatchResolver rowMatchResolver)
         {
 
             if (signature == null)
@@ -186,7 +199,18 @@ namespace NavisLegacyPlugin.Services.Execution
                     continue;
 
 
-                if (!lookupDict.TryGetValue(instruction.MatchValue, out var item))
+                ModelItem item;
+                if (rowMatchResolver != null)
+                {
+                    MatchResolution match = rowMatchResolver.Resolve(row);
+                    if (match.Status != MatchResolutionStatus.Matched || match.Item == null)
+                    {
+                        unmatched++;
+                        continue;
+                    }
+                    item = match.Item;
+                }
+                else if (!lookupDict.TryGetValue(instruction.MatchValue, out item))
                 {
                     unmatched++;
                     continue;
@@ -399,5 +423,3 @@ namespace NavisLegacyPlugin.Services.Execution
 
     }
 }
-
-
