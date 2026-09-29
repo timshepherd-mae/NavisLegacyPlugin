@@ -195,7 +195,11 @@ namespace NavisLegacyPlugin.Services.Execution
 
                 var instruction = mappingStrategy.Map(row);
 
-                if (instruction == null || string.IsNullOrWhiteSpace(instruction.MatchValue))
+                if (instruction == null)
+                    continue;
+
+                if (rowMatchResolver == null &&
+                    string.IsNullOrWhiteSpace(instruction.MatchValue))
                     continue;
 
 

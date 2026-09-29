@@ -47,28 +47,34 @@ namespace NavisLegacyPlugin.Services.Collections
             IDictionary<Guid, ModelItem> uniqueItems,
             int depth)
         {
+            Debug.WriteLine("[MATCH65A] ADD RECURSE");
+
             if (item == null)
             {
-                Debug.WriteLine("RESOLVE | depth=" + depth + " | <null item>");
+                Debug.WriteLine("[MATCH65A] NULL ITEM");
                 return;
             }
 
             Guid key = item.InstanceGuid;
+
             if (uniqueItems.ContainsKey(key))
             {
                 Debug.WriteLine(
-                    "RESOLVE | depth=" + depth +
-                    " | DUPLICATE SKIPPED | " + item.DisplayName +
-                    " | Guid=" + key);
+                    "[MATCH65A] COLLECTION DEDUPE"
+                    + " InstanceGuid=" + key.ToString("D")
+                    + " Existing=" + uniqueItems[key].DisplayName
+                    + " Discarded=" + item.DisplayName);
+
+                return;
+            }
+
+
+            if (uniqueItems.ContainsKey(key))
+            {
                 return;
             }
 
             int childCount = item.Children.Count();
-            Debug.WriteLine(
-                "RESOLVE | depth=" + depth +
-                " | " + item.DisplayName +
-                " | Guid=" + key +
-                " | DirectChildren=" + childCount);
 
             uniqueItems.Add(key, item);
 
@@ -89,5 +95,8 @@ namespace NavisLegacyPlugin.Services.Collections
         }
     }
 }
+
+
+
 
 

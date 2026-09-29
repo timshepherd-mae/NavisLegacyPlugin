@@ -52,21 +52,12 @@ namespace NavisLegacyPlugin.Services.Collections
             IReadOnlyCollection<ModelItem> selectedItems =
                 result.GetItems(resolutionType);
 
-            Debug.WriteLine(
-                "Requested resolution type: " + resolutionType +
-                " | Returned count: " + selectedItems.Count);
-
-            foreach (ModelItem item in selectedItems)
-            {
-                Debug.WriteLine(
-                    "  SELECTED " + resolutionType +
-                    " | " + item.DisplayName +
-                    " | Guid=" + item.InstanceGuid);
-            }
-
             return selectedItems;
         }
     }
 }
+
+
+
 
 

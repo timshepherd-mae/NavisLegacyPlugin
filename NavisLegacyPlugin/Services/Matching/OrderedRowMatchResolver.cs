@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Diagnostics;
 using Autodesk.Navisworks.Api;
 
 namespace NavisLegacyPlugin.Services.Matching
@@ -31,29 +32,91 @@ namespace NavisLegacyPlugin.Services.Matching
         public MatchResolution Resolve(DataRow row)
         {
             if (row == null) throw new ArgumentNullException("row");
+
+            Debug.WriteLine("[MATCH65A] SOURCE " + MatchStrategyFactory.DescribeSourceRow(row));
+
             bool hadKey = false;
+            bool hadMultipleMatches = false;
+            string lastAmbiguousStrategy = null;
+            string lastAmbiguousKey = null;
+
             foreach (StrategyIndex index in _indexes)
             {
                 string key = MatchKey.Create(index.Definition.SourceKeySelector(row));
-                if (key == null) continue;
+                if (key == null)
+                {
+                    Debug.WriteLine("[MATCH65A] STRATEGY '" + index.Definition.Name
+                        + "' source key missing; continue.");
+                    continue;
+                }
+
                 hadKey = true;
                 List<ModelItem> matches;
-                if (!index.Items.TryGetValue(key, out matches)) continue;
+                if (!index.Items.TryGetValue(key, out matches))
+                {
+                    Debug.WriteLine("[MATCH65A] STRATEGY '" + index.Definition.Name
+                        + "' key='" + key + "' target matches=0; continue.");
+                    continue;
+                }
+
+                Debug.WriteLine("[MATCH65A] STRATEGY '" + index.Definition.Name
+                    + "' key='" + key + "' target matches=" + matches.Count + ".");
+
+                for (int candidateIndex = 0; candidateIndex < matches.Count; candidateIndex++)
+                {
+                    Debug.WriteLine("[MATCH65A] CANDIDATE " + (candidateIndex + 1)
+                        + "/" + matches.Count + " "
+                        + MatchStrategyFactory.DescribeTargetItem(matches[candidateIndex]));
+                }
+
                 if (matches.Count > 1)
                 {
-                    _diagnostics.Ambiguous++;
-                    return new MatchResolution(MatchResolutionStatus.Ambiguous, null, index.Definition.Name, key);
+                    hadMultipleMatches = true;
+                    lastAmbiguousStrategy = index.Definition.Name;
+                    lastAmbiguousKey = key;
+                    Debug.WriteLine("[MATCH65A] DECISION multiple; continue.");
+                    continue;
                 }
+
                 _diagnostics.RecordMatch(index.Definition.Name);
-                return new MatchResolution(MatchResolutionStatus.Matched, matches[0], index.Definition.Name, key);
+                Debug.WriteLine("[MATCH65A] DECISION matched by '"
+                    + index.Definition.Name + "'.");
+                return new MatchResolution(
+                    MatchResolutionStatus.Matched,
+                    matches[0],
+                    index.Definition.Name,
+                    key);
             }
+
             if (!hadKey)
             {
                 _diagnostics.MissingKey++;
-                return new MatchResolution(MatchResolutionStatus.MissingKey, null, null, null);
+                Debug.WriteLine("[MATCH65A] DECISION final MissingKey.");
+                return new MatchResolution(
+                    MatchResolutionStatus.MissingKey,
+                    null,
+                    null,
+                    null);
             }
+
+            if (hadMultipleMatches)
+            {
+                _diagnostics.Ambiguous++;
+                Debug.WriteLine("[MATCH65A] DECISION final Ambiguous.");
+                return new MatchResolution(
+                    MatchResolutionStatus.Ambiguous,
+                    null,
+                    lastAmbiguousStrategy,
+                    lastAmbiguousKey);
+            }
+
             _diagnostics.Unmatched++;
-            return new MatchResolution(MatchResolutionStatus.Unmatched, null, null, null);
+            Debug.WriteLine("[MATCH65A] DECISION final Unmatched.");
+            return new MatchResolution(
+                MatchResolutionStatus.Unmatched,
+                null,
+                null,
+                null);
         }
 
         private static StrategyIndex BuildIndex(IEnumerable<ModelItem> targets, MatchStrategyDefinition definition)
@@ -67,6 +130,11 @@ namespace NavisLegacyPlugin.Services.Matching
                 if (!values.TryGetValue(key, out matches)) { matches = new List<ModelItem>(); values.Add(key, matches); }
                 if (!matches.Contains(item)) matches.Add(item);
             }
+            int duplicateKeyCount = values.Count(pair => pair.Value.Count > 1);
+            Debug.WriteLine("[MATCH65A] INDEX '" + definition.Name
+                + "' keys=" + values.Count
+                + ", duplicate keys=" + duplicateKeyCount + ".");
+
             return new StrategyIndex { Definition = definition, Items = values };
         }
     }
@@ -86,3 +154,6 @@ namespace NavisLegacyPlugin.Services.Matching
         }
     }
 }
+
+
+

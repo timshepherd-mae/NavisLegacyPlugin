@@ -13,6 +13,7 @@ using NavisLegacyPlugin.Services.DataSources;
 using NavisLegacyPlugin.Services.Execution;
 using NavisLegacyPlugin.Services.Lookups;
 using NavisLegacyPlugin.Services.Mappers;
+using NavisLegacyPlugin.Services.Matching;
 
 namespace NavisLegacyPlugin.Services
 {
@@ -125,7 +126,22 @@ namespace NavisLegacyPlugin.Services
                 progress,
                 selectionSets);
 
-            ExecuteResult result = await _executor.ExecuteAsync(signature, population);
+            var strategies = new[]
+            {
+                MatchStrategyFactory.ItemGuid(0),
+                MatchStrategyFactory.ItemGuidAndSourceFile(1)
+            };
+
+            var rowMatchResolver = new OrderedRowMatchResolver(
+                targetLookup == null
+                    ? Enumerable.Empty<ModelItem>()
+                    : targetLookup.Values,
+                strategies);
+
+            ExecuteResult result = await _executor.ExecuteAsync(
+                signature,
+                population,
+                rowMatchResolver);
             return (result.Matched, result.Unmatched);
         }
 
