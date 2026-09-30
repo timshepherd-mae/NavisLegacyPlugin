@@ -69,8 +69,9 @@ namespace NavisLegacyPlugin.Services.ExternalSources
                         "[MATCH65A] ADAPTER INPUT duplicate Snapshot.InstanceGuid="
                         + identity.ToString("D") + ".");
 
-                    throw new InvalidOperationException(
-                        "External SOURCE contains duplicate InstanceGuid values.");
+                    // A repeated InstanceGuid is valid in federated/instanced models.
+                    // Preserve every snapshot; ordered matching is responsible for
+                    // resolving ambiguity through composite and fallback strategies.
                 }
             }
 

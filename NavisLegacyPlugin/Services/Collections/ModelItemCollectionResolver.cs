@@ -16,15 +16,15 @@ namespace NavisLegacyPlugin.Services.Collections
             if (rootItems == null)
                 throw new ArgumentNullException(nameof(rootItems));
 
-            Dictionary<Guid, ModelItem> allItems =
-                new Dictionary<Guid, ModelItem>();
+            HashSet<ModelItem> seenItems = new HashSet<ModelItem>();
+            List<ModelItem> allItems = new List<ModelItem>();
 
             foreach (ModelItem rootItem in rootItems)
             {
-                AddRecursively(rootItem, allItems, 0);
+                AddRecursively(rootItem, seenItems, allItems, 0);
             }
 
-            List<ModelItem> all = allItems.Values.ToList();
+            List<ModelItem> all = allItems;
             List<ModelItem> branch = new List<ModelItem>();
             List<ModelItem> leaf = new List<ModelItem>();
 
@@ -44,43 +44,31 @@ namespace NavisLegacyPlugin.Services.Collections
 
         private static void AddRecursively(
             ModelItem item,
-            IDictionary<Guid, ModelItem> uniqueItems,
+            ISet<ModelItem> seenItems,
+            IList<ModelItem> allItems,
             int depth)
         {
-            Debug.WriteLine("[MATCH65A] ADD RECURSE");
-
             if (item == null)
-            {
-                Debug.WriteLine("[MATCH65A] NULL ITEM");
                 return;
-            }
 
-            Guid key = item.InstanceGuid;
-
-            if (uniqueItems.ContainsKey(key))
+            // InstanceGuid is a match attribute, not a globally unique ModelItem identity.
+            // Federated/instanced models can legitimately expose the same InstanceGuid on
+            // different ModelItems. ModelItem equality retains those distinct items while
+            // still preventing the same item reached through overlapping roots being added twice.
+            if (!seenItems.Add(item))
             {
                 Debug.WriteLine(
-                    "[MATCH65A] COLLECTION DEDUPE"
-                    + " InstanceGuid=" + key.ToString("D")
-                    + " Existing=" + uniqueItems[key].DisplayName
-                    + " Discarded=" + item.DisplayName);
-
+                    "[MATCH65A] COLLECTION DEDUPE same ModelItem"
+                    + " InstanceGuid=" + item.InstanceGuid.ToString("D")
+                    + " DisplayName=" + item.DisplayName);
                 return;
             }
 
-
-            if (uniqueItems.ContainsKey(key))
-            {
-                return;
-            }
-
-            int childCount = item.Children.Count();
-
-            uniqueItems.Add(key, item);
+            allItems.Add(item);
 
             foreach (ModelItem child in item.Children)
             {
-                AddRecursively(child, uniqueItems, depth + 1);
+                AddRecursively(child, seenItems, allItems, depth + 1);
             }
         }
 
@@ -95,8 +83,3 @@ namespace NavisLegacyPlugin.Services.Collections
         }
     }
 }
-
-
-
-
-

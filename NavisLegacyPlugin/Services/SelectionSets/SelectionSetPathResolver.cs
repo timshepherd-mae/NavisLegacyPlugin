@@ -1,7 +1,10 @@
-﻿using Autodesk.Navisworks.Api;
+using Autodesk.Navisworks.Api;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace NavisLegacyPlugin.Services.SelectionSets
 {
@@ -119,13 +122,29 @@ namespace NavisLegacyPlugin.Services.SelectionSets
                         string.Join("/", parts)));
             }
 
-            List<ModelItem> items =
+            List<ModelItem> rawItems =
                 selectionSet
                     .GetSelectedItems(document)
                     .Cast<ModelItem>()
+                    .ToList();
+
+            List<ModelItem> items =
+                rawItems
                     .GroupBy(x => x.InstanceGuid)
                     .Select(x => x.First())
                     .ToList();
+
+            if (string.Equals(
+                parts[parts.Length - 1],
+                "TARGET",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                WriteRawTargetDiagnostics(
+                    string.Join("/", parts),
+                    selectionSet,
+                    rawItems,
+                    items);
+            }
 
             if (items.Count == 0)
             {
@@ -137,5 +156,155 @@ namespace NavisLegacyPlugin.Services.SelectionSets
 
             return items;
         }
+
+        private static void WriteRawTargetDiagnostics(
+            string resolvedPath,
+            SelectionSet selectionSet,
+            IList<ModelItem> rawItems,
+            IList<ModelItem> returnedItems)
+        {
+            string logPath = Path.Combine(
+                Path.GetTempPath(),
+                "NavisLegacy_Phase65A_selectionset_"
+                + Guid.NewGuid().ToString("N")
+                + ".selectionset65a.log");
+
+            try
+            {
+                using (StreamWriter log = new StreamWriter(
+                    logPath,
+                    false,
+                    new UTF8Encoding(true)))
+                {
+                    log.AutoFlush = true;
+                    WriteLog(log, "RAW TARGET DIAGNOSTICS STARTED");
+                    WriteLog(log, "Resolved path='" + resolvedPath + "'.");
+                    WriteLog(log, "SelectionSet name=" + Format(selectionSet.DisplayName) + ".");
+                    LogItems(log, "RAW GetSelectedItems", rawItems);
+                    LogItems(log, "RETURNED after InstanceGuid GroupBy", returnedItems);
+                    WriteLog(log, "RAW TARGET DIAGNOSTICS FINISHED");
+                }
+
+                Debug.WriteLine(
+                    "[MATCH65A] SELECTIONSET diagnostics file='"
+                    + logPath + "'.");
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine(
+                    "[MATCH65A] SELECTIONSET diagnostics failed for '"
+                    + logPath + "': " + exception);
+            }
+        }
+
+        private static void LogItems(
+            StreamWriter log,
+            string stage,
+            IList<ModelItem> items)
+        {
+            int count = items == null ? 0 : items.Count;
+            WriteLog(log, stage + " count=" + count + ".");
+
+            if (items == null)
+                return;
+
+            int duplicateGroups = items
+                .Where(x => x != null)
+                .GroupBy(x => x.InstanceGuid)
+                .Count(x => x.Count() > 1);
+
+            WriteLog(
+                log,
+                stage + " duplicate InstanceGuid groups="
+                + duplicateGroups + ".");
+
+            for (int index = 0; index < items.Count; index++)
+            {
+                ModelItem item = items[index];
+                WriteLog(
+                    log,
+                    stage + " item " + (index + 1) + "/" + items.Count
+                    + ": " + Describe(item) + ".");
+            }
+        }
+
+        private static string Describe(ModelItem item)
+        {
+            if (item == null)
+                return "item=<null>";
+
+            return "API.InstanceGuid=" + Format(item.InstanceGuid.ToString("D"))
+                + ", Item.GUID=" + Format(ReadProperty(item, "Item", "GUID"))
+                + ", Item.SourceFile=" + Format(ReadSourceFile(item))
+                + ", RID=" + Format(ReadProperty(item, "MAE-4D", "RID"))
+                + ", DisplayName=" + Format(item.DisplayName);
+        }
+
+        private static string ReadSourceFile(ModelItem item)
+        {
+            string value = ReadProperty(item, "Item", "Source File Name");
+            return string.IsNullOrWhiteSpace(value)
+                ? ReadProperty(item, "Item", "Source File")
+                : value;
+        }
+
+        private static string ReadProperty(
+            ModelItem item,
+            string categoryName,
+            string propertyName)
+        {
+            if (item == null || item.PropertyCategories == null)
+                return null;
+
+            foreach (PropertyCategory category in item.PropertyCategories)
+            {
+                if (category == null
+                    || category.Properties == null
+                    || !string.Equals(category.DisplayName, categoryName,
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                foreach (DataProperty property in category.Properties)
+                {
+                    if (property == null
+                        || !string.Equals(property.DisplayName, propertyName,
+                            StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    try
+                    {
+                        if (property.Value != null && property.Value.IsDisplayString)
+                            return property.Value.ToDisplayString();
+
+                        return property.Value == null
+                            ? null
+                            : property.Value.ToString();
+                    }
+                    catch (Exception exception)
+                    {
+                        return "<unreadable value: "
+                            + exception.GetType().Name + ">";
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static void WriteLog(StreamWriter log, string message)
+        {
+            string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")
+                + " [MATCH65A] SELECTIONSET " + message;
+            Debug.WriteLine(line);
+            log.WriteLine(line);
+        }
+
+        private static string Format(string value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? "<null>"
+                : "'" + value + "'";
+        }
+
     }
 }

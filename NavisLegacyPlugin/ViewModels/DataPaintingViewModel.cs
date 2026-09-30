@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows.Input;
 
 using Microsoft.Win32;
@@ -495,6 +496,11 @@ namespace NavisLegacyPlugin.ViewModels
                     TargetResolutionType);
                 var targetLookup = BuildSelectionLookup(targetItems);
 
+                WriteTargetPopulationDiagnostics(
+                    targetRoots,
+                    targetItems,
+                    targetLookup);
+
                 var mapping = new MappingConfig
                 {
                     ColumnMap = new Dictionary<string, string>
@@ -907,5 +913,183 @@ namespace NavisLegacyPlugin.ViewModels
 			}
 		}
 
+
+        private static void WriteTargetPopulationDiagnostics(
+            IEnumerable<ModelItem> targetRoots,
+            IEnumerable<ModelItem> targetItems,
+            Dictionary<string, ModelItem> targetLookup)
+        {
+            string logPath = Path.Combine(
+                Path.GetTempPath(),
+                "NavisLegacy_Phase65A_target_"
+                + Guid.NewGuid().ToString("N")
+                + ".target65a.log");
+
+            try
+            {
+                using (StreamWriter log = new StreamWriter(
+                    logPath,
+                    false,
+                    new UTF8Encoding(true)))
+                {
+                    log.AutoFlush = true;
+                    WriteTargetLog(log, "TARGET POPULATION DIAGNOSTICS STARTED");
+                    LogTargetItems(log, "TARGET ROOT", targetRoots);
+                    LogTargetItems(log, "TARGET RESOLVED", targetItems);
+
+                    int lookupCount = targetLookup == null ? 0 : targetLookup.Count;
+                    WriteTargetLog(log, "TARGET LOOKUP count=" + lookupCount + ".");
+
+                    if (targetLookup != null)
+                    {
+                        int index = 0;
+                        foreach (KeyValuePair<string, ModelItem> pair in targetLookup)
+                        {
+                            index++;
+                            WriteTargetLog(
+                                log,
+                                "TARGET LOOKUP item " + index
+                                + ": Key=" + FormatTargetLogValue(pair.Key)
+                                + ", " + DescribeTargetItem(pair.Value) + ".");
+                        }
+                    }
+
+                    WriteTargetLog(log, "TARGET POPULATION DIAGNOSTICS FINISHED");
+                }
+
+                Debug.WriteLine(
+                    "[MATCH65A] TARGET diagnostics file="
+                    + FormatTargetLogValue(logPath) + ".");
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine(
+                    "[MATCH65A] TARGET diagnostics failed for '"
+                    + logPath + "': " + exception);
+            }
+        }
+
+        private static void LogTargetItems(
+            StreamWriter log,
+            string stage,
+            IEnumerable<ModelItem> items)
+        {
+            if (items == null)
+            {
+                WriteTargetLog(log, stage + " collection=<null>.");
+                return;
+            }
+
+            List<ModelItem> materialized = items.ToList();
+            WriteTargetLog(log, stage + " count=" + materialized.Count + ".");
+
+            var duplicateGuidGroups = materialized
+                .Where(x => x != null)
+                .GroupBy(x => x.InstanceGuid)
+                .Where(x => x.Count() > 1)
+                .ToList();
+
+            WriteTargetLog(
+                log,
+                stage + " duplicate InstanceGuid groups="
+                + duplicateGuidGroups.Count + ".");
+
+            int index = 0;
+            foreach (ModelItem item in materialized)
+            {
+                index++;
+                WriteTargetLog(
+                    log,
+                    stage + " item " + index + ": "
+                    + DescribeTargetItem(item) + ".");
+            }
+        }
+
+        private static string DescribeTargetItem(ModelItem item)
+        {
+            if (item == null)
+                return "item=<null>";
+
+            return "API.InstanceGuid=" + FormatTargetLogValue(item.InstanceGuid.ToString("D"))
+                + ", Item.GUID=" + FormatTargetLogValue(ReadTargetProperty(item, "Item", "GUID"))
+                + ", Item.SourceFile=" + FormatTargetLogValue(ReadTargetSourceFile(item))
+                + ", RID=" + FormatTargetLogValue(ReadTargetProperty(item, "MAE-4D", "RID"))
+                + ", DisplayName=" + FormatTargetLogValue(item.DisplayName);
+        }
+
+        private static string ReadTargetSourceFile(ModelItem item)
+        {
+            string value = ReadTargetProperty(item, "Item", "Source File Name");
+            return string.IsNullOrWhiteSpace(value)
+                ? ReadTargetProperty(item, "Item", "Source File")
+                : value;
+        }
+
+        private static string ReadTargetProperty(
+            ModelItem item,
+            string categoryName,
+            string propertyName)
+        {
+            if (item == null || item.PropertyCategories == null)
+                return null;
+
+            foreach (PropertyCategory category in item.PropertyCategories)
+            {
+                if (category == null
+                    || category.Properties == null
+                    || !string.Equals(
+                        category.DisplayName,
+                        categoryName,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                foreach (DataProperty property in category.Properties)
+                {
+                    if (property == null
+                        || !string.Equals(
+                            property.DisplayName,
+                            propertyName,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        if (property.Value != null && property.Value.IsDisplayString)
+                            return property.Value.ToDisplayString();
+
+                        return property.Value == null ? null : property.Value.ToString();
+                    }
+                    catch (Exception exception)
+                    {
+                        return "<unreadable value: " + exception.GetType().Name + ">";
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static void WriteTargetLog(StreamWriter log, string message)
+        {
+            string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")
+                + " [MATCH65A] HOST " + message;
+            Debug.WriteLine(line);
+            log.WriteLine(line);
+        }
+
+        private static string FormatTargetLogValue(string value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? "<null>"
+                : "'" + value + "'";
+        }
+
 	}
 }
+
+
+
