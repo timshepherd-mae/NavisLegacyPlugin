@@ -128,11 +128,11 @@ namespace NavisLegacyPlugin.Services.SelectionSets
                     .Cast<ModelItem>()
                     .ToList();
 
-            List<ModelItem> items =
-                rawItems
-                    .GroupBy(x => x.InstanceGuid)
-                    .Select(x => x.First())
-                    .ToList();
+            // Phase 6.5A2: InstanceGuid is a matching attribute, not a
+            // globally unique population identity. Preserve every item returned
+            // by the Selection Set, including copied/federated items that share
+            // an InstanceGuid.
+            List<ModelItem> items = rawItems.ToList();
 
             if (string.Equals(
                 parts[parts.Length - 1],
@@ -308,3 +308,4 @@ namespace NavisLegacyPlugin.Services.SelectionSets
 
     }
 }
+

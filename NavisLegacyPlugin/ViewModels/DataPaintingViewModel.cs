@@ -488,13 +488,21 @@ namespace NavisLegacyPlugin.ViewModels
                         () => _externalExportPopulationService.Resolve(request));
 
                 var document = Autodesk.Navisworks.Api.Application.ActiveDocument;
+
                 var targetRoots = _selectionSetResolver.ResolveRequired(
                     document,
                     DataTransferSelectionSetNames.TargetPath);
+
                 var targetItems = ResolveTransferPopulation(
                     targetRoots,
                     TargetResolutionType);
-                var targetLookup = BuildSelectionLookup(targetItems);
+
+                // Phase 6.5A2
+                // Ordered matching uses targetItems.
+                // ExecuteSignature still expects a non-null lookup.
+                var targetLookup =
+                    new Dictionary<string, ModelItem>(
+                        StringComparer.OrdinalIgnoreCase);
 
                 WriteTargetPopulationDiagnostics(
                     targetRoots,
@@ -538,6 +546,7 @@ namespace NavisLegacyPlugin.ViewModels
                     response,
                     mapping,
                     targetLookup,
+					targetItems,
                     writeConfig,
                     progressConfig,
                     selectionSets);

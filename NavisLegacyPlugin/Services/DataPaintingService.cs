@@ -110,6 +110,7 @@ namespace NavisLegacyPlugin.Services
             ExternalExportPopulationResponse response,
             MappingConfig mapping,
             Dictionary<string, ModelItem> targetLookup,
+            IEnumerable<ModelItem> targetItems,
             WriteConfig writeConfig,
             ProgressConfig progress,
             ExecutionSelectionSets selectionSets)
@@ -132,10 +133,13 @@ namespace NavisLegacyPlugin.Services
                 MatchStrategyFactory.ItemGuidAndSourceFile(1)
             };
 
+            // Phase 6.5A2: the ordered path must index the complete TARGET
+            // population. The legacy GUID lookup remains on ExecuteSignature for
+            // compatibility, but must not define the ordered-match population.
             var rowMatchResolver = new OrderedRowMatchResolver(
-                targetLookup == null
+                targetItems == null
                     ? Enumerable.Empty<ModelItem>()
-                    : targetLookup.Values,
+                    : targetItems,
                 strategies);
 
             ExecuteResult result = await _executor.ExecuteAsync(
@@ -150,3 +154,4 @@ namespace NavisLegacyPlugin.Services
 
     }
 }
+

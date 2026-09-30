@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using Autodesk.Navisworks.Api;
 
@@ -22,7 +23,10 @@ namespace NavisLegacyPlugin.Services.Matching
         {
             if (targetItems == null) throw new ArgumentNullException("targetItems");
             if (strategies == null) throw new ArgumentNullException("strategies");
-            List<ModelItem> targets = targetItems.Where(i => i != null).Distinct().ToList();
+            List<ModelItem> targets = targetItems
+                .Where(i => i != null)
+                .Distinct(ModelItemReferenceComparer.Instance)
+                .ToList();
             _indexes = strategies.Where(s => s != null && s.Enabled).OrderBy(s => s.Priority).Select(s => BuildIndex(targets, s)).ToList();
             if (_indexes.Count == 0) throw new InvalidOperationException("At least one enabled match strategy is required.");
         }
@@ -128,7 +132,7 @@ namespace NavisLegacyPlugin.Services.Matching
                 if (key == null) continue;
                 List<ModelItem> matches;
                 if (!values.TryGetValue(key, out matches)) { matches = new List<ModelItem>(); values.Add(key, matches); }
-                if (!matches.Contains(item)) matches.Add(item);
+                matches.Add(item);
             }
             int duplicateKeyCount = values.Count(pair => pair.Value.Count > 1);
             Debug.WriteLine("[MATCH65A] INDEX '" + definition.Name
@@ -136,6 +140,26 @@ namespace NavisLegacyPlugin.Services.Matching
                 + ", duplicate keys=" + duplicateKeyCount + ".");
 
             return new StrategyIndex { Definition = definition, Items = values };
+        }
+    }
+
+    internal sealed class ModelItemReferenceComparer : IEqualityComparer<ModelItem>
+    {
+        public static readonly ModelItemReferenceComparer Instance =
+            new ModelItemReferenceComparer();
+
+        private ModelItemReferenceComparer()
+        {
+        }
+
+        public bool Equals(ModelItem x, ModelItem y)
+        {
+            return object.ReferenceEquals(x, y);
+        }
+
+        public int GetHashCode(ModelItem obj)
+        {
+            return RuntimeHelpers.GetHashCode(obj);
         }
     }
 

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace NavisLegacyPlugin.Services.Collections
 {
@@ -16,7 +17,8 @@ namespace NavisLegacyPlugin.Services.Collections
             if (rootItems == null)
                 throw new ArgumentNullException(nameof(rootItems));
 
-            HashSet<ModelItem> seenItems = new HashSet<ModelItem>();
+            HashSet<ModelItem> seenItems = new HashSet<ModelItem>(
+                ModelItemReferenceComparer.Instance);
             List<ModelItem> allItems = new List<ModelItem>();
 
             foreach (ModelItem rootItem in rootItems)
@@ -81,5 +83,27 @@ namespace NavisLegacyPlugin.Services.Collections
 
             return false;
         }
+
+        private sealed class ModelItemReferenceComparer : IEqualityComparer<ModelItem>
+        {
+            public static readonly ModelItemReferenceComparer Instance =
+                new ModelItemReferenceComparer();
+
+            private ModelItemReferenceComparer()
+            {
+            }
+
+            public bool Equals(ModelItem x, ModelItem y)
+            {
+                return object.ReferenceEquals(x, y);
+            }
+
+            public int GetHashCode(ModelItem obj)
+            {
+                return RuntimeHelpers.GetHashCode(obj);
+            }
+        }
     }
 }
+
+
