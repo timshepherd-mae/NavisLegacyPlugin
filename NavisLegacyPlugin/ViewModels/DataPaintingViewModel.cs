@@ -114,6 +114,7 @@ namespace NavisLegacyPlugin.ViewModels
 		public ICommand TransferRidCommand { get; }
         public ICommand BrowseExternalSourceFileCommand { get; }
         public ICommand TransferExternalSourceCommand { get; }
+        public ICommand ValidateExternalTransferCommand { get; }
 
 
 		public ICommand CaptureSelectionACommand => new RelayCommand(CaptureSelectionA);
@@ -150,6 +151,55 @@ namespace NavisLegacyPlugin.ViewModels
 			get => _isBusy;
 			set { _isBusy = value; OnPropertyChanged(); }
 		}
+
+        private string _transferValidationMessage = "Not validated.";
+        public string TransferValidationMessage
+        {
+            get { return _transferValidationMessage; }
+            private set { _transferValidationMessage = value; OnPropertyChanged(); }
+        }
+
+        private bool _isTransferValid;
+        public bool IsTransferValid
+        {
+            get { return _isTransferValid; }
+            private set { _isTransferValid = value; OnPropertyChanged(); }
+        }
+
+        private int _lastMatched;
+        public int LastMatched { get { return _lastMatched; } private set { _lastMatched = value; OnPropertyChanged(); } }
+        private int _lastUnmatched;
+        public int LastUnmatched { get { return _lastUnmatched; } private set { _lastUnmatched = value; OnPropertyChanged(); } }
+
+        private void ValidateExternalTransfer()
+        {
+            string message;
+            IsTransferValid = TryValidateExternalTransfer(out message);
+            TransferValidationMessage = message;
+            Status = message;
+            Debug.WriteLine("[PHASE65B] Validation completed valid=" + IsTransferValid + ", message='" + message + "'.");
+        }
+
+        private bool TryValidateExternalTransfer(out string message)
+        {
+            if (string.IsNullOrWhiteSpace(ExternalSourceFilePath) || !File.Exists(ExternalSourceFilePath))
+            {
+                message = "Select a valid external NWD/NWF source file.";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(ExternalExportSetName))
+            {
+                message = "Enter the SOURCE Selection Set name.";
+                return false;
+            }
+            if (Autodesk.Navisworks.Api.Application.ActiveDocument == null)
+            {
+                message = "Open the live TARGET Navisworks document.";
+                return false;
+            }
+            message = "Ready to execute external-to-live transfer.";
+            return true;
+        }
 
 		private string _writeMode = "Branch";
 		public string WriteMode
@@ -247,6 +297,7 @@ namespace NavisLegacyPlugin.ViewModels
 			TransferRidCommand = new RelayCommand(TransferRid, () => CanTransferRid);
             BrowseExternalSourceFileCommand = new RelayCommand(BrowseExternalSourceFile);
             TransferExternalSourceCommand = new RelayCommand(TransferExternalSource);
+            ValidateExternalTransferCommand = new RelayCommand(ValidateExternalTransfer);
 		}
 
 		private void WriteTest()
@@ -472,18 +523,16 @@ namespace NavisLegacyPlugin.ViewModels
 
         private async void TransferExternalSource()
         {
-            if (string.IsNullOrWhiteSpace(ExternalSourceFilePath) ||
-                !File.Exists(ExternalSourceFilePath))
+            string validationMessage;
+            IsTransferValid = TryValidateExternalTransfer(out validationMessage);
+            TransferValidationMessage = validationMessage;
+            if (!IsTransferValid)
             {
-                Status = "Select a valid external NWD/NWF source file.";
+                Status = validationMessage;
+                Debug.WriteLine("[PHASE65B] Execution blocked: " + validationMessage);
                 return;
             }
-
-            if (string.IsNullOrWhiteSpace(ExternalExportSetName))
-            {
-                Status = "Enter the EXPORT Selection Set name.";
-                return;
-            }
+            Debug.WriteLine("[PHASE65B] Execution requested. ExpectDuplicateGuids=" + ExpectDuplicateGuids);
 
             try
             {
@@ -688,7 +737,10 @@ namespace NavisLegacyPlugin.ViewModels
 					progressConfig
 				);
 
-				Status = $"Complete. Matched: {result.matched}, Unmatched: {result.unmatched}";
+				LastMatched = result.matched;
+                LastUnmatched = result.unmatched;
+                Status = $"Complete. Matched: {result.matched}, Unmatched: {result.unmatched}";
+                Debug.WriteLine("[PHASE65B] Result received matched=" + LastMatched + ", unmatched=" + LastUnmatched + ".");
 			}
 			catch (Exception ex)
 			{

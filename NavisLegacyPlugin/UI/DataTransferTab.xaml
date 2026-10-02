@@ -75,7 +75,26 @@
             </GroupBox>
 
             <GroupBox Header="6. EXECUTE / 7. RESULTS">
-                <TextBlock Margin="8" Text="Reserved for Phase 6.5B2 validation, execution, progress and A3A result integration." TextWrapping="Wrap"/>
+                <StackPanel Margin="8">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Validate" Width="95" Margin="0,0,8,0"
+                                Command="{Binding ValidateExternalTransferCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
+                        <Button Content="Execute Transfer" Width="130"
+                                Command="{Binding TransferExternalSourceCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding TransferValidationMessage}" TextWrapping="Wrap" Margin="0,8,0,4"/>
+                    <TextBlock Text="{Binding Status}" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" Height="18"/>
+                    <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0"><TextBlock Text="Matched" FontWeight="Bold"/><TextBlock Text="{Binding LastMatched}" FontSize="18"/></StackPanel>
+                        <StackPanel Grid.Column="1"><TextBlock Text="Unmatched" FontWeight="Bold"/><TextBlock Text="{Binding LastUnmatched}" FontSize="18"/></StackPanel>
+                    </Grid>
+                    <TextBlock Margin="0,8,0,0" Text="Written, Skipped and Failed remain authoritative in MATCH65A3 diagnostics until the existing execution result contract exposes those counters to the ViewModel." TextWrapping="Wrap" FontStyle="Italic"/>
+                </StackPanel>
             </GroupBox>
         </StackPanel>
     </ScrollViewer>
