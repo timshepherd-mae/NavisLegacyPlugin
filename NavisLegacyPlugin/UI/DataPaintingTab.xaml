@@ -1,4 +1,4 @@
-<UserControl x:Class="NavisLegacyPlugin.UI.DataPaintingTab"
+﻿<UserControl x:Class="NavisLegacyPlugin.UI.DataPaintingTab"
             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 
@@ -75,6 +75,10 @@
 		<!-- Overwrite -->
 		<GroupBox Grid.Row="2" Header="Overwrite" Margin="5">
 			<StackPanel>
+                <CheckBox Content="Expect Duplicate GUIDs"
+                          IsChecked="{Binding ExpectDuplicateGuids, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          Margin="0,0,0,8"
+                          ToolTip="Require a later file-aware strategy to verify GUID matches." />
 				<RadioButton Content="Yes"
                      IsChecked="{Binding Overwrite, Mode=TwoWay}" />
 

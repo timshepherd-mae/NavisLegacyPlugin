@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Data;
@@ -23,6 +23,7 @@ using NavisLegacyPlugin.UI;
 using NavisLegacyPlugin.Services.SelectionSets;
 using NavisLegacyPlugin.Services.Collections;
 using NavisLegacyPlugin.Services.ExternalSources;
+using NavisLegacyPlugin.Services.Matching;
 
 namespace NavisLegacyPlugin.ViewModels
 {
@@ -34,6 +35,20 @@ namespace NavisLegacyPlugin.ViewModels
 		private readonly DataPaintingService _paintingService;
 		private readonly SelectionSetPathResolver _selectionSetResolver = new SelectionSetPathResolver();
         private readonly IExternalExportPopulationService _externalExportPopulationService;
+
+
+        private bool _expectDuplicateGuids;
+        public bool ExpectDuplicateGuids
+        {
+            get { return _expectDuplicateGuids; }
+            set
+            {
+                if (_expectDuplicateGuids == value) return;
+                _expectDuplicateGuids = value;
+                DuplicateGuidMatchOptions.ExpectDuplicateGuids = value;
+                OnPropertyChanged();
+            }
+        }
 
         private string _externalSourceFilePath = string.Empty;
         public string ExternalSourceFilePath
@@ -1099,6 +1114,3 @@ namespace NavisLegacyPlugin.ViewModels
 
 	}
 }
-
-
-

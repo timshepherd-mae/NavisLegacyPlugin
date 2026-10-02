@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -18,11 +18,14 @@ namespace NavisLegacyPlugin.Services.Matching
 
         private readonly List<StrategyIndex> _indexes;
         private readonly OrderedMatchDiagnostics _diagnostics = new OrderedMatchDiagnostics();
+        private readonly bool _expectDuplicateGuids;
 
         public OrderedRowMatchResolver(IEnumerable<ModelItem> targetItems, IEnumerable<MatchStrategyDefinition> strategies)
         {
             if (targetItems == null) throw new ArgumentNullException("targetItems");
             if (strategies == null) throw new ArgumentNullException("strategies");
+            _expectDuplicateGuids = DuplicateGuidMatchOptions.ExpectDuplicateGuids;
+            Debug.WriteLine("[MATCH65A3B] ExpectDuplicateGuids=" + _expectDuplicateGuids);
             List<ModelItem> targets = targetItems
                 .Where(i => i != null)
                 .Distinct(ModelItemReferenceComparer.Instance)
@@ -73,6 +76,15 @@ namespace NavisLegacyPlugin.Services.Matching
                         + MatchStrategyFactory.DescribeTargetItem(matches[candidateIndex]));
                 }
 
+                if (_expectDuplicateGuids && IsGuidOnlyStrategy(index.Definition.Name))
+                {
+                    Debug.WriteLine("[MATCH65A3B] Strategy='" + index.Definition.Name
+                        + "' candidates=" + matches.Count + ".");
+                    Debug.WriteLine("[MATCH65A3B] GUID-only acceptance suppressed.");
+                    Debug.WriteLine("[MATCH65A3B] Continuing to file-aware strategy.");
+                    continue;
+                }
+
                 if (matches.Count > 1)
                 {
                     hadMultipleMatches = true;
@@ -121,6 +133,12 @@ namespace NavisLegacyPlugin.Services.Matching
                 null,
                 null,
                 null);
+        }
+
+        private static bool IsGuidOnlyStrategy(string strategyName)
+        {
+            return string.Equals(strategyName, "Item.GUID", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(strategyName, "InstanceGuid", StringComparison.OrdinalIgnoreCase);
         }
 
         private static StrategyIndex BuildIndex(IEnumerable<ModelItem> targets, MatchStrategyDefinition definition)
@@ -178,6 +196,3 @@ namespace NavisLegacyPlugin.Services.Matching
         }
     }
 }
-
-
-
