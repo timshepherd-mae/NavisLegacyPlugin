@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
@@ -106,7 +106,7 @@ namespace NavisLegacyPlugin.Services
         /// Phase 6.4 external SOURCE injection path. The existing ExecuteSignature
         /// contract and all existing ExecuteAsync overloads remain unchanged.
         /// </summary>
-        public async Task<(int matched, int unmatched)> ExecuteExternalSourceAsync(
+        public async Task<(int matched, int unmatched, int written, int skipped, int failed)> ExecuteExternalSourceAsync(
             ExternalExportPopulationResponse response,
             MappingConfig mapping,
             Dictionary<string, ModelItem> targetLookup,
@@ -146,7 +146,12 @@ namespace NavisLegacyPlugin.Services
                 signature,
                 population,
                 rowMatchResolver);
-            return (result.Matched, result.Unmatched);
+            return (
+                result.Matched,
+                result.Unmatched,
+                result.Written,
+                result.Skipped,
+                0);
         }
 
 
@@ -154,4 +159,6 @@ namespace NavisLegacyPlugin.Services
 
     }
 }
+
+
 

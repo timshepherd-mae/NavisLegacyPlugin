@@ -9,9 +9,16 @@
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="10">
-            <TextBlock Text="Data Transfer" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
-            <TextBlock Text="Phase 6.5B1 guided transfer setup. Execution, validation and results integration follows in B2."
-                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Data Transfer" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+                    <TextBlock Text="Guided external-to-live transfer" TextWrapping="Wrap"/>
+                </StackPanel>
+                <Button Grid.Column="1" Content="Clear" Width="80" Height="26" VerticalAlignment="Top"
+                        Command="{Binding ClearExternalTransferCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
+            </Grid>
 
             <GroupBox Header="1. SOURCE" Margin="0,0,0,8">
                 <StackPanel Margin="8">
@@ -74,7 +81,7 @@
                 </StackPanel>
             </GroupBox>
 
-            <GroupBox Header="6. EXECUTE / 7. RESULTS">
+            <GroupBox Header="6. Execute / 7. Results">
                 <StackPanel Margin="8">
                     <StackPanel Orientation="Horizontal">
                         <Button Content="Validate" Width="95" Margin="0,0,8,0"
@@ -84,18 +91,23 @@
                                 Command="{Binding TransferExternalSourceCommand}"
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
                     </StackPanel>
-                    <TextBlock Text="{Binding TransferValidationMessage}" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                    <TextBlock Text="{Binding Status}" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <TextBlock Text="{Binding Status}" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,6"/>
                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" Height="18"/>
                     <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" Margin="0,4,0,8"/>
                     <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0"><TextBlock Text="Matched" FontWeight="Bold"/><TextBlock Text="{Binding LastMatched}" FontSize="18"/></StackPanel>
                         <StackPanel Grid.Column="1"><TextBlock Text="Unmatched" FontWeight="Bold"/><TextBlock Text="{Binding LastUnmatched}" FontSize="18"/></StackPanel>
+                        <StackPanel Grid.Column="2"><TextBlock Text="Written" FontWeight="Bold"/><TextBlock Text="{Binding LastWritten}" FontSize="18"/></StackPanel>
+                        <StackPanel Grid.Column="3"><TextBlock Text="Skipped" FontWeight="Bold"/><TextBlock Text="{Binding LastSkipped}" FontSize="18"/></StackPanel>
+                        <StackPanel Grid.Column="4"><TextBlock Text="Failed" FontWeight="Bold"/><TextBlock Text="{Binding LastFailed}" FontSize="18"/></StackPanel>
                     </Grid>
-                    <TextBlock Margin="0,8,0,0" Text="Written, Skipped and Failed remain authoritative in MATCH65A3 diagnostics until the existing execution result contract exposes those counters to the ViewModel." TextWrapping="Wrap" FontStyle="Italic"/>
                 </StackPanel>
             </GroupBox>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+
+

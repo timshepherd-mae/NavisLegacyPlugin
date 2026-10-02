@@ -59,6 +59,7 @@ namespace NavisLegacyPlugin.ViewModels
                 if (_externalSourceFilePath == value) return;
                 _externalSourceFilePath = value;
                 OnPropertyChanged();
+                InvalidateExternalTransfer();
             }
         }
 
@@ -71,6 +72,7 @@ namespace NavisLegacyPlugin.ViewModels
                 if (_externalExportSetName == value) return;
                 _externalExportSetName = value;
                 OnPropertyChanged();
+                InvalidateExternalTransfer();
             }
         }
 
@@ -115,6 +117,7 @@ namespace NavisLegacyPlugin.ViewModels
         public ICommand BrowseExternalSourceFileCommand { get; }
         public ICommand TransferExternalSourceCommand { get; }
         public ICommand ValidateExternalTransferCommand { get; }
+        public ICommand ClearExternalTransferCommand { get; }
 
 
 		public ICommand CaptureSelectionACommand => new RelayCommand(CaptureSelectionA);
@@ -152,53 +155,68 @@ namespace NavisLegacyPlugin.ViewModels
 			set { _isBusy = value; OnPropertyChanged(); }
 		}
 
-        private string _transferValidationMessage = "Not validated.";
-        public string TransferValidationMessage
+        private bool _isExternalTransferValidated;
+        public bool IsExternalTransferValidated
         {
-            get { return _transferValidationMessage; }
-            private set { _transferValidationMessage = value; OnPropertyChanged(); }
-        }
-
-        private bool _isTransferValid;
-        public bool IsTransferValid
-        {
-            get { return _isTransferValid; }
-            private set { _isTransferValid = value; OnPropertyChanged(); }
+            get { return _isExternalTransferValidated; }
+            private set { _isExternalTransferValidated = value; OnPropertyChanged(); }
         }
 
         private int _lastMatched;
         public int LastMatched { get { return _lastMatched; } private set { _lastMatched = value; OnPropertyChanged(); } }
         private int _lastUnmatched;
         public int LastUnmatched { get { return _lastUnmatched; } private set { _lastUnmatched = value; OnPropertyChanged(); } }
+        private int _lastWritten;
+        public int LastWritten { get { return _lastWritten; } private set { _lastWritten = value; OnPropertyChanged(); } }
+        private int _lastSkipped;
+        public int LastSkipped { get { return _lastSkipped; } private set { _lastSkipped = value; OnPropertyChanged(); } }
+        private int _lastFailed;
+        public int LastFailed { get { return _lastFailed; } private set { _lastFailed = value; OnPropertyChanged(); } }
+
+        private void InvalidateExternalTransfer()
+        {
+            IsExternalTransferValidated = false;
+            Status = "Not validated";
+        }
+
+        private bool TryValidateExternalTransfer()
+        {
+            return !string.IsNullOrWhiteSpace(ExternalSourceFilePath)
+                && File.Exists(ExternalSourceFilePath)
+                && !string.IsNullOrWhiteSpace(ExternalExportSetName)
+                && Autodesk.Navisworks.Api.Application.ActiveDocument != null;
+        }
 
         private void ValidateExternalTransfer()
         {
-            string message;
-            IsTransferValid = TryValidateExternalTransfer(out message);
-            TransferValidationMessage = message;
-            Status = message;
-            Debug.WriteLine("[PHASE65B] Validation completed valid=" + IsTransferValid + ", message='" + message + "'.");
+            IsExternalTransferValidated = TryValidateExternalTransfer();
+            Status = IsExternalTransferValidated
+                ? "Ready to execute external-to-live transfer"
+                : "Not validated";
+            Debug.WriteLine("[PHASE65B3] Validation completed valid=" + IsExternalTransferValidated + ".");
         }
 
-        private bool TryValidateExternalTransfer(out string message)
+        private void ClearExternalTransfer()
         {
-            if (string.IsNullOrWhiteSpace(ExternalSourceFilePath) || !File.Exists(ExternalSourceFilePath))
-            {
-                message = "Select a valid external NWD/NWF source file.";
-                return false;
-            }
-            if (string.IsNullOrWhiteSpace(ExternalExportSetName))
-            {
-                message = "Enter the SOURCE Selection Set name.";
-                return false;
-            }
-            if (Autodesk.Navisworks.Api.Application.ActiveDocument == null)
-            {
-                message = "Open the live TARGET Navisworks document.";
-                return false;
-            }
-            message = "Ready to execute external-to-live transfer.";
-            return true;
+            _externalSourceFilePath = string.Empty;
+            OnPropertyChanged(nameof(ExternalSourceFilePath));
+            _externalExportSetName = string.Empty;
+            OnPropertyChanged(nameof(ExternalExportSetName));
+            SourceResolutionType = null;
+            TargetResolutionType = null;
+            ExportResolutionType = null;
+            Overwrite = false;
+            ExpectDuplicateGuids = false;
+            ProgressPercent = 0;
+            ProgressText = string.Empty;
+            LastMatched = 0;
+            LastUnmatched = 0;
+            LastWritten = 0;
+            LastSkipped = 0;
+            LastFailed = 0;
+            IsExternalTransferValidated = false;
+            Status = "Not validated";
+            Debug.WriteLine("[PHASE65B3] UI hard reset completed.");
         }
 
 		private string _writeMode = "Branch";
@@ -298,6 +316,8 @@ namespace NavisLegacyPlugin.ViewModels
             BrowseExternalSourceFileCommand = new RelayCommand(BrowseExternalSourceFile);
             TransferExternalSourceCommand = new RelayCommand(TransferExternalSource);
             ValidateExternalTransferCommand = new RelayCommand(ValidateExternalTransfer);
+            ClearExternalTransferCommand = new RelayCommand(ClearExternalTransfer);
+            Status = "Not validated";
 		}
 
 		private void WriteTest()
@@ -523,23 +543,19 @@ namespace NavisLegacyPlugin.ViewModels
 
         private async void TransferExternalSource()
         {
-            string validationMessage;
-            IsTransferValid = TryValidateExternalTransfer(out validationMessage);
-            TransferValidationMessage = validationMessage;
-            if (!IsTransferValid)
+            if (!IsExternalTransferValidated || !TryValidateExternalTransfer())
             {
-                Status = validationMessage;
-                Debug.WriteLine("[PHASE65B] Execution blocked: " + validationMessage);
+                IsExternalTransferValidated = false;
+                Status = "Not validated";
                 return;
             }
-            Debug.WriteLine("[PHASE65B] Execution requested. ExpectDuplicateGuids=" + ExpectDuplicateGuids);
 
             try
             {
                 IsBusy = true;
                 ProgressPercent = 0;
-                ProgressText = "Opening external source...";
-                Status = "Extracting external EXPORT population...";
+                ProgressText = string.Empty;
+                Status = "Executing external-to-live transfer";
 
                 CollectionResolutionType resolution =
                     ExportResolutionType ?? CollectionResolutionType.All;
@@ -554,26 +570,16 @@ namespace NavisLegacyPlugin.ViewModels
                         () => _externalExportPopulationService.Resolve(request));
 
                 var document = Autodesk.Navisworks.Api.Application.ActiveDocument;
-
                 var targetRoots = _selectionSetResolver.ResolveRequired(
                     document,
                     DataTransferSelectionSetNames.TargetPath);
-
                 var targetItems = ResolveTransferPopulation(
                     targetRoots,
                     TargetResolutionType);
+                var targetLookup = new Dictionary<string, ModelItem>(
+                    StringComparer.OrdinalIgnoreCase);
 
-                // Phase 6.5A2
-                // Ordered matching uses targetItems.
-                // ExecuteSignature still expects a non-null lookup.
-                var targetLookup =
-                    new Dictionary<string, ModelItem>(
-                        StringComparer.OrdinalIgnoreCase);
-
-                WriteTargetPopulationDiagnostics(
-                    targetRoots,
-                    targetItems,
-                    targetLookup);
+                WriteTargetPopulationDiagnostics(targetRoots, targetItems, targetLookup);
 
                 var mapping = new MappingConfig
                 {
@@ -612,20 +618,26 @@ namespace NavisLegacyPlugin.ViewModels
                     response,
                     mapping,
                     targetLookup,
-					targetItems,
+                    targetItems,
                     writeConfig,
                     progressConfig,
                     selectionSets);
 
-                Status = string.Format(
-                    "External transfer complete. Matched: {0}, Unmatched: {1}",
-                    result.matched,
-                    result.unmatched);
+                LastMatched = result.matched;
+                LastUnmatched = result.unmatched;
+                LastWritten = result.written;
+                LastSkipped = result.skipped;
+                LastFailed = result.failed;
+                Status = "transfer complete";
+                Debug.WriteLine("[PHASE65B3] Transfer complete. Matched=" + LastMatched
+                    + ", Unmatched=" + LastUnmatched + ", Written=" + LastWritten
+                    + ", Skipped=" + LastSkipped + ", Failed=" + LastFailed + ".");
             }
             catch (Exception ex)
             {
                 Debug.WriteLine(ex);
-                Status = "External transfer failed: " + ex.Message;
+                LastFailed = LastFailed + 1;
+                Status = "Transfer failed";
             }
             finally
             {
@@ -737,10 +749,7 @@ namespace NavisLegacyPlugin.ViewModels
 					progressConfig
 				);
 
-				LastMatched = result.matched;
-                LastUnmatched = result.unmatched;
-                Status = $"Complete. Matched: {result.matched}, Unmatched: {result.unmatched}";
-                Debug.WriteLine("[PHASE65B] Result received matched=" + LastMatched + ", unmatched=" + LastUnmatched + ".");
+				Status = $"Complete. Matched: {result.matched}, Unmatched: {result.unmatched}";
 			}
 			catch (Exception ex)
 			{
@@ -1180,3 +1189,4 @@ namespace NavisLegacyPlugin.ViewModels
 
 	}
 }
+
