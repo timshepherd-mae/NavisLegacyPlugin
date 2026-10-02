@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Models;
+using NavisLegacyPlugin.Models.Execution;
 using NavisLegacyPlugin.Models.Scopes;
 using NavisLegacyPlugin.Models.ExternalSources;
 using NavisLegacyPlugin.Services.Collections;
@@ -171,10 +172,7 @@ namespace NavisLegacyPlugin.Services.Execution
             }
 
 
-            int matched = 0;
-            int unmatched = 0;
-            int written = 0;
-            int skipped = 0;
+            var statistics = new TransferStatistics();
 
             var table = await signature.DataSource.GetDataAsync(signature.ProgressConfig.ProgressText);
 
@@ -209,25 +207,45 @@ namespace NavisLegacyPlugin.Services.Execution
                     MatchResolution match = rowMatchResolver.Resolve(row);
                     if (match.Status != MatchResolutionStatus.Matched || match.Item == null)
                     {
-                        unmatched++;
+                        statistics.Record(
+                            MatchOutcome.Unmatched(
+                                rowIndex,
+                                "Ordered resolver did not return one final target."));
+                        Debug.WriteLine(
+                            "[MATCH65A3] Row " + rowIndex
+                            + " final=Unmatched reason=OrderedResolver.");
                         continue;
                     }
                     item = match.Item;
                 }
                 else if (!lookupDict.TryGetValue(instruction.MatchValue, out item))
                 {
-                    unmatched++;
+                    statistics.Record(
+                        MatchOutcome.Unmatched(
+                            rowIndex,
+                            "Legacy lookup did not return a target."));
+                    Debug.WriteLine(
+                        "[MATCH65A3] Row " + rowIndex
+                        + " final=Unmatched reason=LegacyLookup.");
                     continue;
                 }
 
                 if (targetBoundary != null &&
                     !targetBoundary.Contains(item.InstanceGuid))
                 {
-                    unmatched++;
+                    statistics.Record(
+                        MatchOutcome.Unmatched(
+                            rowIndex,
+                            "Resolved target is outside the TARGET boundary."));
+                    Debug.WriteLine(
+                        "[MATCH65A3] Row " + rowIndex
+                        + " final=Unmatched reason=TargetBoundary.");
                     continue;
                 }
 
-                matched++;
+                statistics.Record(MatchOutcome.Matched(rowIndex));
+                Debug.WriteLine(
+                    "[MATCH65A3] Row " + rowIndex + " final=Matched.");
 
                 foreach (var tab in instruction.PropertiesByTab)
                 {
@@ -292,7 +310,7 @@ namespace NavisLegacyPlugin.Services.Execution
                     if (targetBoundary != null &&
                         !targetBoundary.Contains(targetItem.InstanceGuid))
                     {
-                        skipped++;
+                        statistics.RecordSkipped();
                         continue;
                     }
 
@@ -319,7 +337,7 @@ namespace NavisLegacyPlugin.Services.Execution
                             {
                                 if (existingProp != null)
                                 {
-                                    skipped++;
+                                    statistics.RecordSkipped();
                                     continue;
                                 }
                             }
@@ -332,7 +350,7 @@ namespace NavisLegacyPlugin.Services.Execution
                         { propName, propValue }
                                 });
 
-                            written++;
+                            statistics.RecordWritten();
                         }
                     }
                 }
@@ -363,11 +381,18 @@ namespace NavisLegacyPlugin.Services.Execution
             signature.ProgressConfig.ProgressText?.Report("Complete.");
 
 
+            Debug.WriteLine(
+                "[MATCH65A3] SUMMARY matched=" + statistics.Matched
+                + ", unmatched=" + statistics.Unmatched
+                + ", written=" + statistics.Written
+                + ", skipped=" + statistics.Skipped
+                + ", failed=" + statistics.Failed + ".");
+
             return new ExecuteResult(
-                matched,
-                unmatched,
-                written,
-                skipped);
+                statistics.Matched,
+                statistics.Unmatched,
+                statistics.Written,
+                statistics.Skipped);
         }
 
         private void CollectLeafItems(ModelItem item, List<ModelItem> results)
@@ -427,3 +452,5 @@ namespace NavisLegacyPlugin.Services.Execution
 
     }
 }
+
+
