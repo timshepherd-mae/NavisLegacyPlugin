@@ -1,0 +1,82 @@
+﻿<UserControl x:Class="NavisLegacyPlugin.UI.DataTransferTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:NavisLegacyPlugin.Converters"
+             DataContext="{Binding DataPainting}">
+    <UserControl.Resources>
+        <conv:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
+        <conv:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="10">
+            <TextBlock Text="Data Transfer" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+            <TextBlock Text="Phase 6.5B1 guided transfer setup. Execution, validation and results integration follows in B2."
+                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+            <GroupBox Header="1. SOURCE" Margin="0,0,0,8">
+                <StackPanel Margin="8">
+                    <TextBlock Text="External Navisworks file" FontWeight="Bold"/>
+                    <Grid Margin="0,4,0,8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" Text="{Binding ExternalSourceFilePath}" IsReadOnly="True" VerticalContentAlignment="Center"/>
+                        <Button Grid.Column="1" Content="Browse..." Width="90" Margin="6,0,0,0"
+                                Command="{Binding BrowseExternalSourceFileCommand}" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
+                    </Grid>
+                    <TextBlock Text="SOURCE Selection Set" FontWeight="Bold"/>
+                    <Grid Margin="0,4,0,8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" Text="{Binding ExternalExportSetName}" IsReadOnly="True"
+                                 ToolTip="Selection Set beneath MAE-4D / DATA-TRANSFER / EXPORT in the external source file"
+                                 VerticalContentAlignment="Center"/>
+                        <Button Grid.Column="1" Content="Edit..." Width="90" Margin="6,0,0,0"
+                                Command="{Binding EditExternalExportSetNameCommand}" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
+                                ToolTip="Open the standard input dialog to type the Selection Set name"/>
+                    </Grid>
+                    <TextBlock Text="Resolution" FontWeight="Bold"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <RadioButton GroupName="B1SourceResolution" Content="All" Margin="0,0,12,0" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
+                        <RadioButton GroupName="B1SourceResolution" Content="Branch" Margin="0,0,12,0" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
+                        <RadioButton GroupName="B1SourceResolution" Content="Leaf" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
+                    </StackPanel>
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="2. TARGET" Margin="0,0,0,8">
+                <StackPanel Margin="8">
+                    <TextBlock Text="Live in-session TARGET population" FontWeight="Bold"/>
+                    <TextBlock Text="TARGET is resolved from the existing MAE-4D / DATA-TRANSFER / TARGET Selection Set semantics." TextWrapping="Wrap" Margin="0,4,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton GroupName="B1TargetResolution" Content="All" Margin="0,0,12,0" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
+                        <RadioButton GroupName="B1TargetResolution" Content="Branch" Margin="0,0,12,0" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
+                        <RadioButton GroupName="B1TargetResolution" Content="Leaf" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
+                    </StackPanel>
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="3. MATCHING" Margin="0,0,0,8">
+                <StackPanel Margin="8">
+                    <CheckBox Content="Expect Duplicate GUIDs" IsChecked="{Binding ExpectDuplicateGuids, Mode=TwoWay}" FontWeight="Bold"/>
+                    <TextBlock Text="When enabled, GUID-only matches are not accepted until verified by a later file-aware strategy."
+                               TextWrapping="Wrap" Margin="20,4,0,0"/>
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="4. DATA TO TRANSFER" Margin="0,0,0,8">
+                <StackPanel Margin="8">
+                    <TextBlock Text="Existing ExecuteSignature-backed transfer instructions are retained and will be integrated here in Phase 6.5B2." TextWrapping="Wrap"/>
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="5. TRANSFER OPTIONS" Margin="0,0,0,8">
+                <StackPanel Margin="8">
+                    <CheckBox Content="Overwrite existing values" IsChecked="{Binding Overwrite, Mode=TwoWay}"/>
+                    <TextBlock Text="All options on this tab share the same DataPaintingViewModel state as the existing Data Painting tab." TextWrapping="Wrap" Margin="0,6,0,0"/>
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="6. EXECUTE / 7. RESULTS">
+                <TextBlock Margin="8" Text="Reserved for Phase 6.5B2 validation, execution, progress and A3A result integration." TextWrapping="Wrap"/>
+            </GroupBox>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

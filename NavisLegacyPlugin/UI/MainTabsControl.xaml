@@ -17,6 +17,10 @@
 			<ui:DataPaintingTab />
 		</TabItem>
 
+		<TabItem Header="Data Transfer">
+			<ui:DataTransferTab />
+		</TabItem>
+
 
 		<TabItem Header="GUID Test">
 			<ui:GuidTestTab/>

@@ -108,6 +108,7 @@ namespace NavisLegacyPlugin.ViewModels
 		public ICommand EditPropertyTabCommand { get; }
 		public ICommand EditPropertyNameCommand { get; }
 		public ICommand EditPropertyValueCommand { get; }
+		public ICommand EditExternalExportSetNameCommand { get; }
 		public ICommand BrowseSynchroDataFileCommand {  get; }
 		public ICommand GetSynchroDataCommand { get; }
 		public ICommand TransferRidCommand { get; }
@@ -234,6 +235,7 @@ namespace NavisLegacyPlugin.ViewModels
 			EditPropertyTabCommand = new RelayCommand(() => EditField(nameof(PropertyTabName)));
 			EditPropertyNameCommand = new RelayCommand(() => EditField(nameof(PropertyName)));
 			EditPropertyValueCommand = new RelayCommand(() => EditField(nameof(PropertyValue)));
+			EditExternalExportSetNameCommand = new RelayCommand(() => EditField(nameof(ExternalExportSetName)));
 
 			BrowseSynchroDataFileCommand = new RelayCommand(BrowseSynchroDataFile);
 
@@ -721,6 +723,10 @@ namespace NavisLegacyPlugin.ViewModels
 				case nameof(PropertyValue):
 					currentValue = PropertyValue;
 					break;
+
+				case nameof(ExternalExportSetName):
+					currentValue = ExternalExportSetName;
+					break;
 			}
 
 			string label = "";
@@ -737,6 +743,10 @@ namespace NavisLegacyPlugin.ViewModels
 
 				case nameof(PropertyValue):
 					label = "Property Value";
+					break;
+
+				case nameof(ExternalExportSetName):
+					label = "SOURCE Selection Set";
 					break;
 			}
 
@@ -756,6 +766,10 @@ namespace NavisLegacyPlugin.ViewModels
 
 					case nameof(PropertyValue):
 						PropertyValue = dialog.Result;
+						break;
+
+					case nameof(ExternalExportSetName):
+						ExternalExportSetName = dialog.Result;
 						break;
 				}
 			}
