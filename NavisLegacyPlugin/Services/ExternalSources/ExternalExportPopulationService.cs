@@ -1,11 +1,12 @@
 using Autodesk.Navisworks.Api.Automation;
 using NavisLegacyPlugin.Models.ExternalSources;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace NavisLegacyPlugin.Services.ExternalSources
@@ -47,14 +48,12 @@ namespace NavisLegacyPlugin.Services.ExternalSources
             }
 
             string token = Guid.NewGuid().ToString("N");
-
             string responsePath = Path.Combine(
                 Path.GetTempPath(),
                 "NavisLegacy_Phase72_" + token + ".response.json");
-
             string progressPath = Path.Combine(
                 Path.GetTempPath(),
-                "NavisLegacy_Phase72_" + token + ".progress.json");
+                "NavisLegacy_Phase72_" + token + ".progress");
 
             NavisworksApplication automation = null;
             var monitorState = new ProgressMonitorState();
@@ -140,8 +139,7 @@ namespace NavisLegacyPlugin.Services.ExternalSources
                 }
 
                 TryDelete(responsePath);
-                TryDelete(progressPath);
-                TryDelete(progressPath + ".tmp");
+                TryDeleteProgressRecords(progressPath);
             }
         }
 
@@ -153,92 +151,82 @@ namespace NavisLegacyPlugin.Services.ExternalSources
             if (progress == null || state == null)
                 return;
 
-            string lastPayload = null;
+            var processedRecords = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
 
             while (!state.StopRequested)
             {
-                try
-                {
-                    if (File.Exists(progressPath))
-                    {
-                        string payload =
-                            ReadProgressPayload(progressPath);
-
-                        if (!string.IsNullOrWhiteSpace(payload) &&
-                            !string.Equals(
-                                lastPayload,
-                                payload,
-                                StringComparison.Ordinal))
-                        {
-                            ExternalSourceProgress value =
-                                DeserializeProgress(payload);
-
-                            if (value != null)
-                                progress.Report(value);
-
-                            lastPayload = payload;
-                        }
-                    }
-                }
-                catch (IOException)
-                {
-                    // The worker may be replacing the sidecar file.
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    // Progress is best-effort; the response remains authoritative.
-                }
-                catch (SerializationException)
-                {
-                    // Retry if a replacement record was observed mid-write.
-                }
-                catch (Exception exception)
-                {
-                    Debug.WriteLine(
-                        "[PHASE72] Progress monitor read failed: " +
-                        exception);
-                }
+                ReportNewProgressRecords(
+                    progressPath,
+                    progress,
+                    processedRecords);
 
                 if (state.StopRequested)
                     break;
 
-                // No cancellation token is used. Normal monitor shutdown must
-                // not create TaskCanceledException as part of control flow.
                 await Task.Delay(ProgressPollMilliseconds)
                     .ConfigureAwait(false);
             }
+
+            ReportNewProgressRecords(
+                progressPath,
+                progress,
+                processedRecords);
         }
 
-        private static string ReadProgressPayload(
-            string progressPath)
+        private static void ReportNewProgressRecords(
+            string progressPath,
+            IProgress<ExternalSourceProgress> progress,
+            ISet<string> processedRecords)
         {
-            using (FileStream stream = File.Open(
-                progressPath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete))
-            using (var reader = new StreamReader(stream))
+            string[] records = GetProgressRecordPaths(progressPath);
+
+            foreach (string recordPath in records)
             {
-                return reader.ReadToEnd();
+                if (processedRecords.Contains(recordPath))
+                    continue;
+
+                ExternalSourceProgress value =
+                    TryReadProgressRecord(recordPath);
+
+                if (value == null)
+                    continue;
+
+                progress.Report(value);
+                processedRecords.Add(recordPath);
             }
         }
 
-        private static ExternalSourceProgress DeserializeProgress(
-            string payload)
+        private static ExternalSourceProgress TryReadProgressRecord(
+            string recordPath)
         {
-            if (string.IsNullOrWhiteSpace(payload))
-                return null;
-
-            byte[] bytes = Encoding.UTF8.GetBytes(payload);
-
-            using (var stream = new MemoryStream(bytes))
+            try
             {
-                var serializer =
-                    new DataContractJsonSerializer(
-                        typeof(ExternalSourceProgress));
+                using (FileStream stream = new FileStream(
+                    recordPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read | FileShare.Delete))
+                {
+                    var serializer =
+                        new DataContractJsonSerializer(
+                            typeof(ExternalSourceProgress));
 
-                return (ExternalSourceProgress)
-                    serializer.ReadObject(stream);
+                    return (ExternalSourceProgress)
+                        serializer.ReadObject(stream);
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return null;
+            }
+            catch (SerializationException)
+            {
+                return null;
             }
         }
 
@@ -246,37 +234,42 @@ namespace NavisLegacyPlugin.Services.ExternalSources
             string progressPath,
             IProgress<ExternalSourceProgress> progress)
         {
-            if (progress == null || !File.Exists(progressPath))
+            if (progress == null)
                 return;
+
+            string[] records = GetProgressRecordPaths(progressPath);
+            if (records.Length == 0)
+                return;
+
+            ExternalSourceProgress value =
+                TryReadProgressRecord(records[records.Length - 1]);
+
+            if (value != null)
+                progress.Report(value);
+        }
+
+        private static string[] GetProgressRecordPaths(
+            string progressPath)
+        {
+            string directory = Path.GetDirectoryName(progressPath);
+            string prefix = Path.GetFileName(progressPath) + ".";
+
+            if (string.IsNullOrWhiteSpace(directory) ||
+                !Directory.Exists(directory))
+            {
+                return new string[0];
+            }
 
             try
             {
-                string payload =
-                    ReadProgressPayload(progressPath);
-
-                ExternalSourceProgress value =
-                    DeserializeProgress(payload);
-
-                if (value != null)
-                    progress.Report(value);
+                return Directory
+                    .GetFiles(directory, prefix + "*.record")
+                    .OrderBy(path => path, StringComparer.Ordinal)
+                    .ToArray();
             }
-            catch (IOException)
+            catch (DirectoryNotFoundException)
             {
-                // Final response remains authoritative.
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // Best-effort progress only.
-            }
-            catch (SerializationException)
-            {
-                // Best-effort progress only.
-            }
-            catch (Exception exception)
-            {
-                Debug.WriteLine(
-                    "[PHASE72] Final progress read failed: " +
-                    exception);
+                return new string[0];
             }
         }
 
@@ -334,8 +327,14 @@ namespace NavisLegacyPlugin.Services.ExternalSources
                 });
         }
 
-        private static void TryDelete(
-            string path)
+        private static void TryDeleteProgressRecords(
+            string progressPath)
+        {
+            foreach (string recordPath in GetProgressRecordPaths(progressPath))
+                TryDelete(recordPath);
+        }
+
+        private static void TryDelete(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
                 return;

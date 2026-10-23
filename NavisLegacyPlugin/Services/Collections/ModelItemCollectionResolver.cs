@@ -59,10 +59,6 @@ namespace NavisLegacyPlugin.Services.Collections
             // still preventing the same item reached through overlapping roots being added twice.
             if (!seenItems.Add(item))
             {
-                Debug.WriteLine(
-                    "[MATCH65A] COLLECTION DEDUPE same ModelItem"
-                    + " InstanceGuid=" + item.InstanceGuid.ToString("D")
-                    + " DisplayName=" + item.DisplayName);
                 return;
             }
 
@@ -105,5 +101,3 @@ namespace NavisLegacyPlugin.Services.Collections
         }
     }
 }
-
-

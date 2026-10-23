@@ -98,27 +98,6 @@ namespace NavisLegacyPlugin.Services.Matching
             return null;
         }
 
-        internal static string DescribeSourceRow(DataRow row)
-        {
-            return "Item.GUID=" + LogValue(ReadSourceProperty(row, "Item", "GUID"))
-                + ", Item.SourceFileRaw=" + LogValue(ReadSourceFile(row))
-                + ", Item.SourceFileNormalized=" + LogValue(NormalizeSourceFile(ReadSourceFile(row)))
-                + ", RID=" + LogValue(ReadSourceProperty(row, "MAE-4D", "RID"));
-        }
-
-        internal static string DescribeTargetItem(ModelItem item)
-        {
-            return "Item.GUID=" + LogValue(ReadTargetProperty(item, "Item", "GUID"))
-                + ", Item.SourceFileRaw=" + LogValue(ReadTargetSourceFile(item))
-                + ", Item.SourceFileNormalized=" + LogValue(NormalizeSourceFile(ReadTargetSourceFile(item)))
-                + ", API.InstanceGuid=" + LogValue(item == null ? null : item.InstanceGuid.ToString("D"));
-        }
-
-        private static string LogValue(string value)
-        {
-            return string.IsNullOrWhiteSpace(value) ? "<null>" : "'" + value + "'";
-        }
-
         private static string NormalizeVariantString(object value)
         {
             if (value == null || value == DBNull.Value) return null;
@@ -141,6 +120,3 @@ namespace NavisLegacyPlugin.Services.Matching
         }
     }
 }
-
-
-

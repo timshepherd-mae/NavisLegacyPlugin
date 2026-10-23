@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
@@ -93,8 +93,6 @@ namespace NavisLegacyPlugin.Services.Execution
             if (signature.LookupProvider == null)
                 throw new ArgumentException(
                     "LookupProvider is required.");
-
-            Debug.WriteLine(">>> USING EXECUTESIGNATURE PATH <<<");
 
             ScopeResolution sourceScope = null;
             ScopeResolution targetScope = null;
@@ -211,9 +209,6 @@ namespace NavisLegacyPlugin.Services.Execution
                             MatchOutcome.Unmatched(
                                 rowIndex,
                                 "Ordered resolver did not return one final target."));
-                        Debug.WriteLine(
-                            "[MATCH65A3] Row " + rowIndex
-                            + " final=Unmatched reason=OrderedResolver.");
                         continue;
                     }
                     item = match.Item;
@@ -224,9 +219,6 @@ namespace NavisLegacyPlugin.Services.Execution
                         MatchOutcome.Unmatched(
                             rowIndex,
                             "Legacy lookup did not return a target."));
-                    Debug.WriteLine(
-                        "[MATCH65A3] Row " + rowIndex
-                        + " final=Unmatched reason=LegacyLookup.");
                     continue;
                 }
 
@@ -237,15 +229,10 @@ namespace NavisLegacyPlugin.Services.Execution
                         MatchOutcome.Unmatched(
                             rowIndex,
                             "Resolved target is outside the TARGET boundary."));
-                    Debug.WriteLine(
-                        "[MATCH65A3] Row " + rowIndex
-                        + " final=Unmatched reason=TargetBoundary.");
                     continue;
                 }
 
                 statistics.Record(MatchOutcome.Matched(rowIndex));
-                Debug.WriteLine(
-                    "[MATCH65A3] Row " + rowIndex + " final=Matched.");
 
                 foreach (var tab in instruction.PropertiesByTab)
                 {
@@ -380,14 +367,6 @@ namespace NavisLegacyPlugin.Services.Execution
             signature.ProgressConfig.ProgressPercent?.Report(100);
             signature.ProgressConfig.ProgressText?.Report("Complete.");
 
-
-            Debug.WriteLine(
-                "[MATCH65A3] SUMMARY matched=" + statistics.Matched
-                + ", unmatched=" + statistics.Unmatched
-                + ", written=" + statistics.Written
-                + ", skipped=" + statistics.Skipped
-                + ", failed=" + statistics.Failed + ".");
-
             return new ExecuteResult(
                 statistics.Matched,
                 statistics.Unmatched,
@@ -452,5 +431,3 @@ namespace NavisLegacyPlugin.Services.Execution
 
     }
 }
-
-

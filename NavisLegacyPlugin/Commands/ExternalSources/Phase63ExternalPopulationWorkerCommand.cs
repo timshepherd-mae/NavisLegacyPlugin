@@ -27,7 +27,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             string exportName = parameters[3];
             string resolutionName = parameters[4];
             string progressPath = parameters[5];
-            string logPath = output + ".match65a.log";
 
             ExternalExportPopulationResponse response = new ExternalExportPopulationResponse
             {
@@ -36,47 +35,19 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 ResolutionType = resolutionName
             };
 
-            using (StreamWriter log = CreateWorkerLog(logPath))
-            {
-                WriteLog(log, "WORKER STARTED");
-                WriteLog(log, "Response file=" + FormatLogValue(output) + ".");
-                WriteLog(log, "Worker log file=" + FormatLogValue(logPath) + ".");
-                WriteLog(log, "Source file=" + FormatLogValue(source) + ".");
-                WriteLog(log, "Export set=" + FormatLogValue(exportName) + ".");
-                WriteLog(log, "Resolution=" + FormatLogValue(resolutionName) + ".");
-                WriteLog(log, "Progress file=" + FormatLogValue(progressPath) + ".");
-
-                try
+            try
                 {
-                    PublishProgress(progressPath, log, ExternalSourceProgressStage.LocatingExportSet, 0, 0, "Locating SOURCE Selection Set...", false);
+                    PublishProgress(progressPath, ExternalSourceProgressStage.LocatingExportSet, 0, 0, "Locating SOURCE Selection Set...", false);
                     response.SourceHashBefore = Hash(source);
-                    WriteLog(log, "Source hash before=" + response.SourceHashBefore + ".");
-
                     Document document = Autodesk.Navisworks.Api.Application.ActiveDocument;
                     if (document == null)
                         throw new InvalidOperationException("Worker ActiveDocument is null.");
 
                     SelectionSet set = FindExportSet(document, exportName);
-                    PublishProgress(progressPath, log, ExternalSourceProgressStage.ResolvingSourcePopulation, 0, 0, "Resolving SOURCE population...", false);
-                    WriteLog(log, "Export set found=" + FormatLogValue(set.DisplayName) + ".");
-
+                    PublishProgress(progressPath, ExternalSourceProgressStage.ResolvingSourcePopulation, 0, 0, "Resolving SOURCE population...", false);
                     ModelItemCollection selected = set.GetSelectedItems();
-                    WriteLog(log, "SELECTED ROOT count=" + selected.Count + ".");
-                    LogItems(log, "SELECTED ROOT", selected);
-
                     ModelItemCollectionResolver resolver = new ModelItemCollectionResolver();
                     CollectionResolutionResult resolved = resolver.Resolve(selected);
-
-                    WriteLog(
-                        log,
-                        "RESOLVED counts: All=" + resolved.AllItems.Count
-                        + ", Branch=" + resolved.BranchItems.Count
-                        + ", Leaf=" + resolved.LeafItems.Count + ".");
-
-                    LogItems(log, "RESOLVED ALL", resolved.AllItems);
-                    LogItems(log, "RESOLVED BRANCH", resolved.BranchItems);
-                    LogItems(log, "RESOLVED LEAF", resolved.LeafItems);
-
                     response.AllCount = resolved.AllItems.Count;
                     response.BranchCount = resolved.BranchItems.Count;
                     response.LeafCount = resolved.LeafItems.Count;
@@ -95,16 +66,9 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     List<ModelItem> outputItemList = outputItems
                         .Where(item => item != null)
                         .ToList();
-
-                    WriteLog(
-                        log,
-                        "OUTPUT resolution=" + type
-                        + ", count=" + outputItemList.Count + ".");
-                    LogItems(log, "OUTPUT", outputItemList);
-
                     int outputTotal = outputItemList.Count;
                     int outputCurrent = 0;
-                    PublishProgress(progressPath, log, ExternalSourceProgressStage.ReadingSourceData,
+                    PublishProgress(progressPath, ExternalSourceProgressStage.ReadingSourceData,
                         0, outputTotal, "Reading SOURCE data 0/" + outputTotal + "...", true);
                     foreach (ModelItem item in outputItemList)
                     {
@@ -134,7 +98,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                         {
                             PublishProgress(
                                 progressPath,
-                                log,
                                 ExternalSourceProgressStage.ReadingSourceData,
                                 outputCurrent,
                                 outputTotal,
@@ -142,12 +105,8 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                                 true);
                         }
                     }
-
-                    WriteLog(log, "RESPONSE snapshots=" + response.Items.Count + ".");
-
                     PublishProgress(
                         progressPath,
-                        log,
                         ExternalSourceProgressStage.VerifyingSource,
                         outputTotal,
                         outputTotal,
@@ -155,8 +114,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                         false);
 
                     response.SourceHashAfter = Hash(source);
-                    WriteLog(log, "Source hash after=" + response.SourceHashAfter + ".");
-
                     if (!string.Equals(
                         response.SourceHashBefore,
                         response.SourceHashAfter,
@@ -167,24 +124,19 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     }
 
                     response.Success = true;
-                    PublishProgress(progressPath, log, ExternalSourceProgressStage.ExternalSourceReady,
+                    PublishProgress(progressPath, ExternalSourceProgressStage.ExternalSourceReady,
                         outputTotal, outputTotal, "External SOURCE data ready.", true);
-                    WriteLog(log, "WORKER processing SUCCESS.");
                 }
                 catch (Exception exception)
                 {
                     response.Success = false;
                     response.Error = exception.ToString();
-                    WriteLog(log, "WORKER EXCEPTION: " + exception);
-
                     try
                     {
                         response.SourceHashAfter = Hash(source);
-                        WriteLog(log, "Source hash after exception=" + response.SourceHashAfter + ".");
                     }
-                    catch (Exception hashException)
+                    catch
                     {
-                        WriteLog(log, "Source hash after exception could not be read: " + hashException);
                     }
                 }
 
@@ -196,21 +148,12 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                             new DataContractJsonSerializer(typeof(ExternalExportPopulationResponse));
                         serializer.WriteObject(stream, response);
                     }
-
-                    WriteLog(
-                        log,
-                        "Response JSON written=" + FormatLogValue(output)
-                        + ", success=" + response.Success + ".");
                 }
-                catch (Exception serializationException)
+                catch
                 {
-                    WriteLog(log, "RESPONSE SERIALIZATION EXCEPTION: " + serializationException);
                     return -1;
                 }
-
-                WriteLog(log, "WORKER FINISHED return=" + (response.Success ? 0 : -1) + ".");
-                return response.Success ? 0 : -1;
-            }
+            return response.Success ? 0 : -1;
         }
 
         private static bool ShouldPublishItemProgress(int current, int total)
@@ -221,19 +164,23 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
         }
         private static void PublishProgress(
             string path,
-            StreamWriter log,
             string stage,
             int current,
             int total,
             string message,
             bool determinate)
         {
-            if (string.IsNullOrWhiteSpace(path)) return;
-            string temporaryPath = path + ".tmp";
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+
+            string directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+
+            string recordPath = CreateProgressRecordPath(path);
+
             try
             {
-                string directory = Path.GetDirectoryName(path);
-                if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
                 var value = new ExternalSourceProgress
                 {
                     Stage = stage,
@@ -242,62 +189,40 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     Message = message,
                     IsDeterminate = determinate
                 };
-                using (FileStream stream = File.Create(temporaryPath))
+
+                using (FileStream stream = new FileStream(
+                    recordPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.Read))
                 {
-                    new DataContractJsonSerializer(typeof(ExternalSourceProgress)).WriteObject(stream, value);
+                    new DataContractJsonSerializer(
+                        typeof(ExternalSourceProgress))
+                        .WriteObject(stream, value);
                 }
-                if (File.Exists(path)) File.Delete(path);
-                File.Move(temporaryPath, path);
             }
-            catch (Exception exception)
+            catch
             {
-                WriteLog(log, "PROGRESS publication failed: " + exception);
-                try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); } catch { }
-            }
-        }
-        private static StreamWriter CreateWorkerLog(string path)
-        {
-            try
-            {
-                string directory = Path.GetDirectoryName(path);
-                if (!string.IsNullOrWhiteSpace(directory))
-                    Directory.CreateDirectory(directory);
-
-                StreamWriter writer = new StreamWriter(
-                    path,
-                    false,
-                    new UTF8Encoding(true));
-                writer.AutoFlush = true;
-                return writer;
-            }
-            catch (Exception exception)
-            {
-                Debug.WriteLine(
-                    "[MATCH65A] WORKER could not create file log '"
-                    + path + "': " + exception);
-                return null;
+                // Progress is best-effort. The response JSON remains authoritative.
+                try
+                {
+                    if (File.Exists(recordPath))
+                        File.Delete(recordPath);
+                }
+                catch
+                {
+                }
             }
         }
 
-        private static void WriteLog(StreamWriter log, string message)
+        private static string CreateProgressRecordPath(string progressPath)
         {
-            string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")
-                + " [MATCH65A] WORKER " + message;
-
-            Debug.WriteLine(line);
-
-            if (log == null)
-                return;
-
-            try
-            {
-                log.WriteLine(line);
-            }
-            catch (Exception exception)
-            {
-                Debug.WriteLine(
-                    "[MATCH65A] WORKER file-log write failed: " + exception);
-            }
+            return progressPath
+                + "."
+                + DateTime.UtcNow.Ticks.ToString("D19")
+                + "."
+                + Guid.NewGuid().ToString("N")
+                + ".record";
         }
 
         private static SelectionSet FindExportSet(Document document, string name)
@@ -335,99 +260,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     "Export set missing or ambiguous: " + name);
 
             return sets[0];
-        }
-
-        private static void LogItems(
-            StreamWriter log,
-            string stage,
-            IEnumerable<ModelItem> items)
-        {
-            if (items == null)
-            {
-                WriteLog(log, stage + " collection=<null>.");
-                return;
-            }
-
-            int index = 0;
-            foreach (ModelItem item in items)
-            {
-                index++;
-                WriteLog(
-                    log,
-                    stage + " item " + index
-                    + ": API.InstanceGuid=" + FormatLogValue(
-                        item == null ? null : item.InstanceGuid.ToString("D"))
-                    + ", Item.GUID=" + FormatLogValue(
-                        ReadItemProperty(item, "GUID"))
-                    + ", Item.SourceFile=" + FormatLogValue(
-                        ReadSourceFile(item))
-                    + ", RID=" + FormatLogValue(
-                        ReadProperty(item, "MAE-4D", "RID"))
-                    + ", DisplayName=" + FormatLogValue(
-                        item == null ? null : item.DisplayName)
-                    + ".");
-            }
-
-            WriteLog(log, stage + " enumerated count=" + index + ".");
-        }
-
-        private static string ReadSourceFile(ModelItem item)
-        {
-            string value = ReadItemProperty(item, "Source File Name");
-            if (!string.IsNullOrWhiteSpace(value))
-                return value;
-
-            return ReadItemProperty(item, "Source File");
-        }
-
-        private static string ReadItemProperty(ModelItem item, string propertyName)
-        {
-            return ReadProperty(item, "Item", propertyName);
-        }
-
-        private static string ReadProperty(
-            ModelItem item,
-            string categoryName,
-            string propertyName)
-        {
-            if (item == null || item.PropertyCategories == null)
-                return null;
-
-            foreach (PropertyCategory category in item.PropertyCategories)
-            {
-                if (category == null
-                    || !string.Equals(
-                        category.DisplayName,
-                        categoryName,
-                        StringComparison.OrdinalIgnoreCase)
-                    || category.Properties == null)
-                {
-                    continue;
-                }
-
-                foreach (DataProperty property in category.Properties)
-                {
-                    if (property == null
-                        || !string.Equals(
-                            property.DisplayName,
-                            propertyName,
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    return SerializeVariantData(property.Value);
-                }
-            }
-
-            return null;
-        }
-
-        private static string FormatLogValue(string value)
-        {
-            return string.IsNullOrWhiteSpace(value)
-                ? "<null>"
-                : "'" + value + "'";
         }
 
         private static string SerializeVariantData(VariantData value)

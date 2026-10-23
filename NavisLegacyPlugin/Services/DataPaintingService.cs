@@ -115,9 +115,16 @@ namespace NavisLegacyPlugin.Services
             ProgressConfig progress,
             ExecutionSelectionSets selectionSets)
         {
+            Stopwatch phase72Timing = Stopwatch.StartNew();
+            LogPhase72Timing("External execution service entered", phase72Timing);
             var adapter = new ExternalSourcePopulationAdapter();
+            Stopwatch stageTiming = Stopwatch.StartNew();
             ExternalSourcePopulation population = adapter.Adapt(response);
-            IDataSource dataSource = new InMemoryDataSource(adapter.ToDataTable(population));
+            LogPhase72Timing("SOURCE adapter complete", stageTiming);
+            stageTiming.Restart();
+            DataTable externalTable = adapter.ToDataTable(population);
+            LogPhase72Timing("SOURCE DataTable complete", stageTiming);
+            IDataSource dataSource = new InMemoryDataSource(externalTable);
 
             var signature = new ExecuteSignature(
                 dataSource,
@@ -136,12 +143,16 @@ namespace NavisLegacyPlugin.Services
             // Phase 6.5A2: the ordered path must index the complete TARGET
             // population. The legacy GUID lookup remains on ExecuteSignature for
             // compatibility, but must not define the ordered-match population.
+            progress.ProgressText?.Report("Preparing TARGET match indexes...");
+            stageTiming.Restart();
             var rowMatchResolver = new OrderedRowMatchResolver(
                 targetItems == null
                     ? Enumerable.Empty<ModelItem>()
                     : targetItems,
                 strategies);
-
+            LogPhase72Timing("TARGET match indexes complete", stageTiming);
+            progress.ProgressText?.Report("Entering transfer executor...");
+            LogPhase72Timing("Executor hand-off", phase72Timing);
             ExecuteResult result = await _executor.ExecuteAsync(
                 signature,
                 population,
