@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Data;
@@ -565,21 +565,43 @@ namespace NavisLegacyPlugin.ViewModels
                     ExternalExportSetName.Trim(),
                     resolution);
 
+                var externalProgress = new Progress<ExternalSourceProgress>(
+                    progress => ApplyExternalSourceProgress(progress));
                 ExternalExportPopulationResponse response = await
                     System.Threading.Tasks.Task.Run(
-                        () => _externalExportPopulationService.Resolve(request));
-
+                        () => _externalExportPopulationService.Resolve(
+                            request,
+                            externalProgress));
+                Stopwatch phase72Timing = Stopwatch.StartNew();
+                LogPhase72Timing("External response returned to host", phase72Timing);
+                ProgressText = "Preparing TARGET Selection Set...";
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                    () => { },
+                    System.Windows.Threading.DispatcherPriority.Background);
+                Stopwatch stageTiming = Stopwatch.StartNew();
                 var document = Autodesk.Navisworks.Api.Application.ActiveDocument;
                 var targetRoots = _selectionSetResolver.ResolveRequired(
                     document,
                     DataTransferSelectionSetNames.TargetPath);
+                LogPhase72Timing("TARGET Selection Set resolved", stageTiming);
+                ProgressText = "Resolving TARGET population...";
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                    () => { },
+                    System.Windows.Threading.DispatcherPriority.Background);
+                stageTiming.Restart();
                 var targetItems = ResolveTransferPopulation(
                     targetRoots,
                     TargetResolutionType);
+                LogPhase72Timing("TARGET population resolved", stageTiming);
                 var targetLookup = new Dictionary<string, ModelItem>(
                     StringComparer.OrdinalIgnoreCase);
-
+                ProgressText = "Running TARGET diagnostics...";
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                    () => { },
+                    System.Windows.Threading.DispatcherPriority.Background);
+                stageTiming.Restart();
                 WriteTargetPopulationDiagnostics(targetRoots, targetItems, targetLookup);
+                LogPhase72Timing("TARGET diagnostics complete", stageTiming);
 
                 var mapping = new MappingConfig
                 {
@@ -614,6 +636,11 @@ namespace NavisLegacyPlugin.ViewModels
                     TargetResolutionType,
                     resolution);
 
+                ProgressText = "Preparing SOURCE transfer data...";
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                    () => { },
+                    System.Windows.Threading.DispatcherPriority.Background);
+                LogPhase72Timing("Calling external transfer service", phase72Timing);
                 var result = await _paintingService.ExecuteExternalSourceAsync(
                     response,
                     mapping,
@@ -645,6 +672,51 @@ namespace NavisLegacyPlugin.ViewModels
             }
         }
 
+        private static void LogPhase72Timing(string stage, Stopwatch stopwatch)
+        {
+            long elapsed = stopwatch == null ? -1L : stopwatch.ElapsedMilliseconds;
+            string message = "[PHASE72 TIMING] " + stage + " elapsedMs=" + elapsed + ".";
+            Debug.WriteLine(message);
+            Logger.Info(message);
+        }
+        private void ApplyExternalSourceProgress(ExternalSourceProgress progress)
+        {
+            if (progress == null) return;
+            ProgressText = string.IsNullOrWhiteSpace(progress.Message)
+                ? "Reading external SOURCE..."
+                : progress.Message;
+            int percent;
+            switch (progress.Stage)
+            {
+                case ExternalSourceProgressStage.StartingExternalSource:
+                    percent = 1;
+                    break;
+                case ExternalSourceProgressStage.OpeningExternalFile:
+                    percent = 5;
+                    break;
+                case ExternalSourceProgressStage.LocatingExportSet:
+                    percent = 10;
+                    break;
+                case ExternalSourceProgressStage.ResolvingSourcePopulation:
+                    percent = 15;
+                    break;
+                case ExternalSourceProgressStage.ReadingSourceData:
+                    percent = progress.Total > 0
+                        ? 15 + Math.Min(20, progress.Current * 20 / progress.Total)
+                        : 15;
+                    break;
+                case ExternalSourceProgressStage.VerifyingSource:
+                    percent = 34;
+                    break;
+                case ExternalSourceProgressStage.ExternalSourceReady:
+                    percent = 35;
+                    break;
+                default:
+                    percent = ProgressPercent;
+                    break;
+            }
+            if (percent > ProgressPercent) ProgressPercent = percent;
+        }
         private void BrowseSynchroDataFile()
         {
             var dialog = new OpenFileDialog
@@ -1189,4 +1261,3 @@ namespace NavisLegacyPlugin.ViewModels
 
 	}
 }
-

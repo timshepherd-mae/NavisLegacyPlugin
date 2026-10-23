@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -10,6 +10,8 @@ using Autodesk.Navisworks.Api;
 using Autodesk.Navisworks.Api.Plugins;
 using ComApi = Autodesk.Navisworks.Api.Interop.ComApi;
 using ComApiBridge = Autodesk.Navisworks.Api.ComApi;
+using NavisLegacyPlugin.Models.Collections;
+using NavisLegacyPlugin.Services.Collections;
 
 namespace NavisLegacyPlugin.Commands
 {
@@ -52,7 +54,7 @@ namespace NavisLegacyPlugin.Commands
     }
 
     [Plugin("FindBlankRidCandidates", "MAE", DisplayName = "Find Blank RID Candidates",
-        ToolTip = "Create or refresh the RID-PURGE-CANDIDATES Selection Set")]
+        ToolTip = "Create or refresh RID-PURGE-CANDIDATES from the current selection and all descendants")]
     public sealed class FindBlankRidCandidatesCommand : AddInPlugin
     {
         public override int Execute(params string[] parameters)
@@ -66,10 +68,43 @@ namespace NavisLegacyPlugin.Commands
 
             try
             {
+                ModelItemCollection selectedItems = document.CurrentSelection == null
+                    ? null
+                    : document.CurrentSelection.SelectedItems;
+
+                if (selectedItems == null || selectedItems.Count == 0)
+                {
+                    MessageBox.Show(
+                        "There are no items in the current in-session selection."
+                        + Environment.NewLine
+                        + "Select the required collection, then run Find Blank RID Candidates again.",
+                        "Find Blank RID Candidates",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    return 0;
+                }
+
                 string logPath = PurgeRidDiagnosticLogger.Start();
+
+                // Phase 5 collection resolution expands every explicitly selected root,
+                // de-duplicates overlapping paths, and returns its selected roots plus
+                // every descendant branch and leaf item.
+                var collectionResolver = new ModelItemCollectionResolver();
+                CollectionResolutionResult resolved = collectionResolver.Resolve(selectedItems);
+
+                PurgeRidDiagnosticLogger.Write(
+                    "Candidate scan scope: current in-session selection plus descendants"
+                    + " | SelectedRoots=" + selectedItems.Count
+                    + " | AllItems=" + resolved.AllItems.Count
+                    + " | BranchItems=" + resolved.BranchItems.Count
+                    + " | LeafItems=" + resolved.LeafItems.Count);
+
                 var candidates = new ModelItemCollection();
-                foreach (ModelItem root in document.Models.RootItems)
-                    AddCandidates(root, candidates);
+                foreach (ModelItem item in resolved.AllItems)
+                {
+                    if (PurgeRidPropertyUtility.HasBlankRid(item))
+                        candidates.Add(item);
+                }
 
                 var candidateSet = new SelectionSet(candidates);
                 candidateSet.DisplayName = PurgeRidConstants.CandidateSetName;
@@ -79,8 +114,16 @@ namespace NavisLegacyPlugin.Commands
                 else
                     document.SelectionSets.AddCopy(candidateSet);
 
-                PurgeRidDiagnosticLogger.Write("Candidate scan complete. Count=" + candidates.Count);
+                PurgeRidDiagnosticLogger.Write(
+                    "Candidate scan complete"
+                    + " | SelectedRoots=" + selectedItems.Count
+                    + " | ItemsInspected=" + resolved.AllItems.Count
+                    + " | Candidates=" + candidates.Count);
                 MessageBox.Show("Selection Set created/refreshed: " + PurgeRidConstants.CandidateSetName +
+                    Environment.NewLine + "Selected roots: " + selectedItems.Count +
+                    Environment.NewLine + "Items inspected (roots + branches + leaves): " + resolved.AllItems.Count +
+                    Environment.NewLine + "Branch items: " + resolved.BranchItems.Count +
+                    Environment.NewLine + "Leaf items: " + resolved.LeafItems.Count +
                     Environment.NewLine + "Candidates: " + candidates.Count +
                     Environment.NewLine + "Diagnostic log: " + logPath,
                     "Find Blank RID Candidates", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -94,12 +137,6 @@ namespace NavisLegacyPlugin.Commands
                     "Find Blank RID Candidates", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return -1;
             }
-        }
-
-        private static void AddCandidates(ModelItem item, ModelItemCollection output)
-        {
-            if (PurgeRidPropertyUtility.HasBlankRid(item)) output.Add(item);
-            foreach (ModelItem child in item.Children) AddCandidates(child, output);
         }
 
         private static int FindRootSetIndex(Document document, string name)

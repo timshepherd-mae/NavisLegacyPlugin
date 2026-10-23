@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
@@ -157,8 +157,13 @@ namespace NavisLegacyPlugin.Services
 
 
 
+        private static void LogPhase72Timing(string stage, Stopwatch stopwatch)
+        {
+            long elapsed = stopwatch == null ? -1L : stopwatch.ElapsedMilliseconds;
+            string message = "[PHASE72 TIMING] " + stage + " elapsedMs=" + elapsed + ".";
+            Debug.WriteLine(message);
+            Logger.Info(message);
+        }
+
     }
 }
-
-
-

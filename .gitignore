@@ -372,6 +372,9 @@ Logs/
 # Unit Testing
 UnitTests/
 
+# non-code content
+_non_code/
+
 # Ignore Bundle\Contents
 /NavisLegacyPlugin.bundle/Contents/NavisLegacyPlugin.dll
 
