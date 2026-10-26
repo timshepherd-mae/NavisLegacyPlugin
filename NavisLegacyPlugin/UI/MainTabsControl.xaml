@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="NavisLegacyPlugin.UI.MainTabsControl"
+<UserControl x:Class="NavisLegacyPlugin.UI.MainTabsControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="clr-namespace:NavisLegacyPlugin.UI">
@@ -27,5 +27,8 @@
 		</TabItem>
 
 
+		<TabItem Header="PURGE RID">
+			<ui:PurgeRidTab/>
+		</TabItem>
 	</TabControl>
 </UserControl>

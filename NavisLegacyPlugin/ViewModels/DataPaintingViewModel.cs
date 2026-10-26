@@ -24,6 +24,8 @@ using NavisLegacyPlugin.Services.SelectionSets;
 using NavisLegacyPlugin.Services.Collections;
 using NavisLegacyPlugin.Services.ExternalSources;
 using NavisLegacyPlugin.Services.Matching;
+using NavisLegacyPlugin.Commands;
+using System.Windows;
 
 namespace NavisLegacyPlugin.ViewModels
 {
@@ -118,6 +120,10 @@ namespace NavisLegacyPlugin.ViewModels
         public ICommand TransferExternalSourceCommand { get; }
         public ICommand ValidateExternalTransferCommand { get; }
         public ICommand ClearExternalTransferCommand { get; }
+        public ICommand FindBlankRidCandidatesCommand { get; }
+        public ICommand PurgeBlankRidCommand { get; }
+        public ICommand PrepareClearRidCommand { get; }
+        public ICommand ClearRidCommand { get; }
 
 
 		public ICommand CaptureSelectionACommand => new RelayCommand(CaptureSelectionA);
@@ -317,6 +323,10 @@ namespace NavisLegacyPlugin.ViewModels
             TransferExternalSourceCommand = new RelayCommand(TransferExternalSource);
             ValidateExternalTransferCommand = new RelayCommand(ValidateExternalTransfer);
             ClearExternalTransferCommand = new RelayCommand(ClearExternalTransfer);
+            FindBlankRidCandidatesCommand = new RelayCommand(FindBlankRidCandidates);
+            PurgeBlankRidCommand = new RelayCommand(PurgeBlankRid);
+            PrepareClearRidCommand = new RelayCommand(PrepareClearRid);
+            ClearRidCommand = new RelayCommand(ClearRid);
             Status = "Not validated";
 		}
 
@@ -399,7 +409,7 @@ namespace NavisLegacyPlugin.ViewModels
 		private async System.Threading.Tasks.Task<(int matched, int unmatched)> ExecuteSelectionTransferAsync()
 		{
 
-            var document = Application.ActiveDocument;
+            var document = Autodesk.Navisworks.Api.Application.ActiveDocument;
 
             var sourceRoots =
                 _selectionSetResolver.ResolveRequired(
@@ -828,6 +838,40 @@ namespace NavisLegacyPlugin.ViewModels
 		}
 
 
+        private async void FindBlankRidCandidates() { await PrepareRidCandidatesAsync(RidRemovalMode.BlankOnly); }
+        private async void PrepareClearRid() { await PrepareRidCandidatesAsync(RidRemovalMode.AnyRid); }
+        private async System.Threading.Tasks.Task PrepareRidCandidatesAsync(RidRemovalMode mode)
+        {
+            try
+            {
+                IsBusy = true; ProgressPercent = 0; ProgressText = "Preparing RID population..."; Status = "Inspecting RID values...";
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+                var result = PurgeRidWorkflow.PrepareCandidates(mode, new Progress<string>(x => ProgressText = x), new Progress<int>(x => ProgressPercent = x));
+                ProgressPercent = 50;
+                Status = mode == RidRemovalMode.BlankOnly ? "Ready to purge " + result.Eligible + " blank RID items." : "Ready to clear RID from " + result.Eligible + " items.";
+            }
+            catch (Exception ex) { Status = "RID preparation failed: " + ex.Message; }
+            finally { IsBusy = false; }
+        }
+        private async void PurgeBlankRid() { await RemoveRidAsync(RidRemovalMode.BlankOnly); }
+        private async void ClearRid() { await RemoveRidAsync(RidRemovalMode.AnyRid); }
+        private async System.Threading.Tasks.Task RemoveRidAsync(RidRemovalMode mode)
+        {
+            string warning = mode == RidRemovalMode.BlankOnly
+                ? "Remove the currently eligible blank MAE-4D / RID properties?"
+                : "This will permanently remove MAE-4D / RID properties, including populated or valid RID values, from RID-CLEAR-CANDIDATES. Continue?";
+            if (System.Windows.MessageBox.Show(warning, mode == RidRemovalMode.BlankOnly ? "Purge Blank RID" : "CLEAR RID", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            try
+            {
+                IsBusy = true; ProgressPercent = 50; Status = "Removing RID properties...";
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+                var result = PurgeRidWorkflow.RemoveCandidates(mode, new Progress<string>(x => ProgressText = x), new Progress<int>(x => ProgressPercent = x));
+                ProgressPercent = 100; ProgressText = "Complete. " + result.Changed + " items changed; " + result.Removed + " RID properties removed."; Status = ProgressText;
+            }
+            catch (Exception ex) { Status = "RID operation failed: " + ex.Message; }
+            finally { IsBusy = false; }
+        }
+
 		private void OnSelectionChanged()
 		{
 			UpdateTransferState();
@@ -905,7 +949,7 @@ namespace NavisLegacyPlugin.ViewModels
 
 		public void CaptureSelectionA()
 		{
-			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
+			var selection = Autodesk.Navisworks.Api.Application.ActiveDocument.CurrentSelection.SelectedItems;
 			CollectionA = selection
 				.Cast<ModelItem>()
 				.SelectMany(item => ResolveByDepth(item))
@@ -926,7 +970,7 @@ namespace NavisLegacyPlugin.ViewModels
 
 		public void ShowSelectionA()
 		{
-			var doc = Application.ActiveDocument;
+			var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
 			if (doc == null) return;
 			doc.CurrentSelection.Clear();
 			foreach (var item in CollectionA)
@@ -937,7 +981,7 @@ namespace NavisLegacyPlugin.ViewModels
 
 		public void CaptureSelectionB()
 		{
-			var selection = Application.ActiveDocument.CurrentSelection.SelectedItems;
+			var selection = Autodesk.Navisworks.Api.Application.ActiveDocument.CurrentSelection.SelectedItems;
 			CollectionB = selection
 				.Cast<ModelItem>()
 				.SelectMany(item => ResolveByDepth(item))
@@ -958,7 +1002,7 @@ namespace NavisLegacyPlugin.ViewModels
 
 		public void ShowSelectionB()
 		{
-			var doc = Application.ActiveDocument;
+			var doc = Autodesk.Navisworks.Api.Application.ActiveDocument;
 			if (doc == null) return;
 			doc.CurrentSelection.Clear();
 			foreach (var item in CollectionB)
@@ -1080,4 +1124,4 @@ namespace NavisLegacyPlugin.ViewModels
 
 
 	}  
-}  
+}
