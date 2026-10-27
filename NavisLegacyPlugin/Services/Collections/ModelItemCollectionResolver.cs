@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
 
 namespace NavisLegacyPlugin.Services.Collections
 {
@@ -80,24 +79,5 @@ namespace NavisLegacyPlugin.Services.Collections
             return false;
         }
 
-        private sealed class ModelItemReferenceComparer : IEqualityComparer<ModelItem>
-        {
-            public static readonly ModelItemReferenceComparer Instance =
-                new ModelItemReferenceComparer();
-
-            private ModelItemReferenceComparer()
-            {
-            }
-
-            public bool Equals(ModelItem x, ModelItem y)
-            {
-                return object.ReferenceEquals(x, y);
-            }
-
-            public int GetHashCode(ModelItem obj)
-            {
-                return RuntimeHelpers.GetHashCode(obj);
-            }
-        }
     }
 }

@@ -1,8 +1,9 @@
-﻿using Autodesk.Navisworks.Api;
+using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Models.Scopes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using NavisLegacyPlugin.Services.Collections;
 
 namespace NavisLegacyPlugin.Services.SelectionSets
 {
@@ -45,23 +46,13 @@ namespace NavisLegacyPlugin.Services.SelectionSets
                     document,
                     definition.ScopePath);
 
-            Dictionary<Guid, ModelItem> unique =
-                new Dictionary<Guid, ModelItem>();
-
-            foreach (ModelItem item in items)
-            {
-                if (!unique.ContainsKey(
-                    item.InstanceGuid))
-                {
-                    unique.Add(
-                        item.InstanceGuid,
-                        item);
-                }
-            }
-
+            List<ModelItem> unique = items
+                .Where(item => item != null)
+                .Distinct(ModelItemReferenceComparer.Instance)
+                .ToList();
             return new ScopeResolution(
                 definition,
-                unique.Values.ToList().AsReadOnly(),
+                unique.AsReadOnly(),
                 DateTime.UtcNow);
         }
     }

@@ -177,10 +177,19 @@ namespace NavisLegacyPlugin.Services.Execution
 
                 MatchResolution match =
                     resolver.Resolve(row);
-
+                if (match.Status == MatchResolutionStatus.Matched &&
+                    match.Item != null &&
+                    !resolver.IsTargetMember(match.Item))
+                {
+                    match = new MatchResolution(
+                        MatchResolutionStatus.Unmatched,
+                        null,
+                        match.StrategyName,
+                        match.Key,
+                        "Matched item is outside the resolved TARGET population.");
+                }
                 builder.Match =
                     ToTransferMatchResult(match);
-
                 if (match.Status !=
                         MatchResolutionStatus.Matched ||
                     match.Item == null)

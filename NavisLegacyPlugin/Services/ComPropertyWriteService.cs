@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using Autodesk.Navisworks.Api;
 using Autodesk.Navisworks.Api.ComApi;
 using Autodesk.Navisworks.Api.Interop.ComApi;
+using NavisLegacyPlugin.Services.Collections;
 
 namespace NavisLegacyPlugin.Services
 {
@@ -117,20 +118,13 @@ namespace NavisLegacyPlugin.Services
 			try
 			{
 				state = (InwOpState10)ComApiBridge.State;
-
-				// Optional de-duplication by InstanceGuid to avoid writing the same item twice
-				var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-				foreach (var item in items)
-				{
-					if (item == null)
-						continue;
-
-					var guid = item.InstanceGuid.ToString("D");
-					if (seen.Contains(guid))
-						continue;
-
-					seen.Add(guid);
+                // Suppress only repeated references to the same ModelItem.
+                // Distinct items that share InstanceGuid remain separate write targets.
+                var seen = new HashSet<ModelItem>(ModelItemReferenceComparer.Instance);
+                foreach (var item in items)
+                {
+                    if (item == null || !seen.Add(item))
+                        continue;
 
 					WriteOrUpdateUserDefinedPropertiesInternal(
 						state,

@@ -66,6 +66,7 @@ namespace NavisLegacyPlugin.Services.Matching
     public interface IRowMatchResolver
     {
         MatchResolution Resolve(DataRow row);
+        bool IsTargetMember(ModelItem item);
         OrderedMatchDiagnostics Diagnostics { get; }
     }
 }

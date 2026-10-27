@@ -1,7 +1,8 @@
-﻿using Autodesk.Navisworks.Api;
+using Autodesk.Navisworks.Api;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using NavisLegacyPlugin.Services.Collections;
 
 namespace NavisLegacyPlugin.Services.SelectionSets
 {
@@ -67,10 +68,8 @@ namespace NavisLegacyPlugin.Services.SelectionSets
             return selectionSet
                 .GetSelectedItems(document)
                 .Cast<ModelItem>()
-                .GroupBy(
-                    x => x.InstanceGuid)
-                .Select(
-                    x => x.First())
+                .Where(item => item != null)
+                .Distinct(ModelItemReferenceComparer.Instance)
                 .ToList();
         }
     }

@@ -535,32 +535,48 @@ private void InvalidateExternalTransfer()
             return population;
         }
 
-		private Dictionary<string, ModelItem> BuildSelectionLookup(ModelItemCollection selection)
-		{
-			return selection
-				.Cast<ModelItem>()
-				.ToDictionary(
-					item => item.InstanceGuid.ToString("D"),
-					item => item,
-					StringComparer.OrdinalIgnoreCase);
-		}
+        private Dictionary<string, ModelItem> BuildSelectionLookup(
+            ModelItemCollection selection)
+        {
+            return BuildSelectionLookup(
+                selection == null
+                    ? Enumerable.Empty<ModelItem>()
+                    : selection.Cast<ModelItem>());
+        }
 
-		private Dictionary<string, ModelItem> BuildSelectionLookup(IEnumerable<ModelItem> items)
-		{
-			var groups = items
-				.GroupBy(i => i.InstanceGuid.ToString("D"))
-				.ToList();
+        private Dictionary<string, ModelItem> BuildSelectionLookup(
+            IEnumerable<ModelItem> items)
+        {
+            List<IGrouping<string, ModelItem>> groups = (items ??
+                    Enumerable.Empty<ModelItem>())
+                .Where(item => item != null)
+                .Distinct(NavisLegacyPlugin.Services.Collections.ModelItemReferenceComparer.Instance)
+                .GroupBy(
+                    item => item.InstanceGuid.ToString("D"),
+                    StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-			var duplicates = groups.Where(g => g.Count() > 1).ToList();
+            List<string> duplicateKeys = groups
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key)
+                .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-			return items
-				.GroupBy(item => item.InstanceGuid.ToString("D"))
-				.ToDictionary(
-					g => g.Key,
-					g => g.First(),
-					StringComparer.OrdinalIgnoreCase);
-		}
+            if (duplicateKeys.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "Current-document TARGET contains distinct ModelItems " +
+                    "with duplicate InstanceGuid values. Transfer was stopped " +
+                    "before mutation because this legacy lookup requires a " +
+                    "unique TARGET candidate. Duplicate key(s): " +
+                    string.Join(", ", duplicateKeys.ToArray()));
+            }
 
+            return groups.ToDictionary(
+                group => group.Key,
+                group => group.Single(),
+                StringComparer.OrdinalIgnoreCase);
+        }
         private void BrowseExternalSourceFile()
         {
             var dialog = new OpenFileDialog

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Runtime.CompilerServices;
+using NavisLegacyPlugin.Services.Collections;
 using System.Diagnostics;
 using Autodesk.Navisworks.Api;
 
@@ -19,6 +19,7 @@ namespace NavisLegacyPlugin.Services.Matching
         private readonly List<StrategyIndex> _indexes;
         private readonly OrderedMatchDiagnostics _diagnostics = new OrderedMatchDiagnostics();
         private readonly bool _expectDuplicateGuids;
+        private readonly HashSet<ModelItem> _targetPopulation;
 
         public OrderedRowMatchResolver(IEnumerable<ModelItem> targetItems, IEnumerable<MatchStrategyDefinition> strategies)
         {
@@ -29,11 +30,19 @@ namespace NavisLegacyPlugin.Services.Matching
                 .Where(i => i != null)
                 .Distinct(ModelItemReferenceComparer.Instance)
                 .ToList();
+            _targetPopulation = new HashSet<ModelItem>(
+                targets,
+                ModelItemReferenceComparer.Instance);
             _indexes = strategies.Where(s => s != null && s.Enabled).OrderBy(s => s.Priority).Select(s => BuildIndex(targets, s)).ToList();
             if (_indexes.Count == 0) throw new InvalidOperationException("At least one enabled match strategy is required.");
         }
 
         public OrderedMatchDiagnostics Diagnostics { get { return _diagnostics; } }
+
+        public bool IsTargetMember(ModelItem item)
+        {
+            return item != null && _targetPopulation.Contains(item);
+        }
 
         public MatchResolution Resolve(DataRow row)
         {
@@ -132,26 +141,6 @@ namespace NavisLegacyPlugin.Services.Matching
             int duplicateKeyCount = values.Count(pair => pair.Value.Count > 1);
 
             return new StrategyIndex { Definition = definition, Items = values };
-        }
-    }
-
-    internal sealed class ModelItemReferenceComparer : IEqualityComparer<ModelItem>
-    {
-        public static readonly ModelItemReferenceComparer Instance =
-            new ModelItemReferenceComparer();
-
-        private ModelItemReferenceComparer()
-        {
-        }
-
-        public bool Equals(ModelItem x, ModelItem y)
-        {
-            return object.ReferenceEquals(x, y);
-        }
-
-        public int GetHashCode(ModelItem obj)
-        {
-            return RuntimeHelpers.GetHashCode(obj);
         }
     }
 
