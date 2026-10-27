@@ -94,36 +94,52 @@
                     <TextBlock Text="{Binding Status}" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,6"/>
                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" Height="18"/>
                     <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" Margin="0,4,0,8"/>
-                    <GroupBox Header="SOURCE and matching" Margin="0,0,0,8">
-                        <Grid Margin="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0"><TextBlock Text="SOURCE items" FontWeight="Bold"/><TextBlock Text="{Binding LastSourceItems}" FontSize="18"/></StackPanel>
-                            <StackPanel Grid.Column="1"><TextBlock Text="Matched to TARGET" FontWeight="Bold"/><TextBlock Text="{Binding LastMatched}" FontSize="18"/></StackPanel>
-                            <StackPanel Grid.Column="2"><TextBlock Text="Unresolved" FontWeight="Bold"/><TextBlock Text="{Binding LastUnmatched}" FontSize="18"/></StackPanel>
-                        </Grid>
-                    </GroupBox>
-                    <GroupBox Header="RID transfer coverage" Margin="0,0,0,8">
-                        <Grid Margin="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0"><TextBlock Text="Transferable RIDs" FontWeight="Bold" TextWrapping="Wrap"/><TextBlock Text="{Binding LastTransferableRids}" FontSize="18"/></StackPanel>
-                            <StackPanel Grid.Column="1"><TextBlock Text="RIDs found a TARGET" FontWeight="Bold" TextWrapping="Wrap"/><TextBlock Text="{Binding LastMatchedTransferableRids}" FontSize="18"/></StackPanel>
-                            <StackPanel Grid.Column="2"><TextBlock Text="RIDs need review" FontWeight="Bold" TextWrapping="Wrap"/><TextBlock Text="{Binding LastUnresolvedTransferableRids}" FontSize="18"/></StackPanel>
-                            <StackPanel Grid.Column="3"><TextBlock Text="Matched, no RID" FontWeight="Bold" TextWrapping="Wrap"/><TextBlock Text="{Binding LastMatchedWithoutTransferableRid}" FontSize="18"/></StackPanel>
-                        </Grid>
-                    </GroupBox>
-                    <GroupBox Header="Write result">
-                        <Grid Margin="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0"><TextBlock Text="Written" FontWeight="Bold"/><TextBlock Text="{Binding LastWritten}" FontSize="18"/></StackPanel>
-                            <StackPanel Grid.Column="1"><TextBlock Text="Skipped" FontWeight="Bold"/><TextBlock Text="{Binding LastSkipped}" FontSize="18"/></StackPanel>
-                            <StackPanel Grid.Column="2"><TextBlock Text="Failed" FontWeight="Bold"/><TextBlock Text="{Binding LastFailed}" FontSize="18"/></StackPanel>
-                        </Grid>
+                    <GroupBox Header="Transfer accounting" Margin="0,0,0,8">
+                        <StackPanel Margin="8">
+                            <TextBlock Text="Every SOURCE item is shown once in the outcome flow." FontWeight="Bold"/>
+                            <TextBlock Text="Follow the branches to see matching, RID coverage and write results without mixing denominators." TextWrapping="Wrap" Margin="0,2,0,10" Foreground="DimGray"/>
+                            <Border Background="#E8F1FB" BorderBrush="#7A9CC6" BorderThickness="1" CornerRadius="4" Padding="10">
+                                <StackPanel HorizontalAlignment="Center"><TextBlock Text="SOURCE items" FontWeight="Bold"/><TextBlock Text="{Binding LastSourceItems}" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/></StackPanel>
+                            </Border>
+                            <TextBlock Text="↓" FontSize="20" HorizontalAlignment="Center" Margin="0,2"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="12"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Background="#E8F5E9" BorderBrush="#79A77C" BorderThickness="1" CornerRadius="4" Padding="8"><StackPanel><TextBlock Text="Matched to TARGET" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastMatched}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center"/></StackPanel></Border>
+                                <Border Grid.Column="2" Background="#FDECEC" BorderBrush="#C98A8A" BorderThickness="1" CornerRadius="4" Padding="8"><StackPanel><TextBlock Text="Unresolved" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastUnmatched}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center"/></StackPanel></Border>
+                            </Grid>
+                            <TextBlock Text="Each branch is split by transferable RID availability." HorizontalAlignment="Center" Margin="0,8" Foreground="DimGray"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/><ColumnDefinition Width="16"/><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Background="#DFF3E3" BorderBrush="#79A77C" BorderThickness="1" CornerRadius="4" Padding="7"><StackPanel><StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="Matched" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="with RID" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        </StackPanel><TextBlock Text="{Binding LastMatchedTransferableRids}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="eligible to write" FontSize="11" HorizontalAlignment="Center"/></StackPanel></Border>
+                                <Border Grid.Column="2" Background="#FFF4D7" BorderBrush="#C9A85C" BorderThickness="1" CornerRadius="4" Padding="7"><StackPanel><StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="Matched" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="no RID" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        </StackPanel><TextBlock Text="{Binding LastMatchedWithoutTransferableRid}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="no write required" FontSize="11" HorizontalAlignment="Center"/></StackPanel></Border>
+                                <Border Grid.Column="4" Background="#FCE2CE" BorderBrush="#C98D5C" BorderThickness="1" CornerRadius="4" Padding="7"><StackPanel><StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="Unresolved" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="with RID" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        </StackPanel><TextBlock Text="{Binding LastUnresolvedTransferableRids}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="needs review" FontSize="11" HorizontalAlignment="Center"/></StackPanel></Border>
+                                <Border Grid.Column="6" Background="#EEEEEE" BorderBrush="#999999" BorderThickness="1" CornerRadius="4" Padding="7"><StackPanel><StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="Unresolved" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="no RID" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        </StackPanel><TextBlock Text="{Binding LastUnresolvedWithoutTransferableRid}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="no write possible" FontSize="11" HorizontalAlignment="Center"/></StackPanel></Border>
+                            </Grid>
+                            <Border Background="#EEF0FF" BorderBrush="#858BC4" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,10,0,8">
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0"><TextBlock Text="Transferable RIDs" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastTransferableRids}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"/></StackPanel>
+                                    <StackPanel Grid.Column="1"><TextBlock Text="Found TARGET" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastMatchedTransferableRids}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"/></StackPanel>
+                                    <StackPanel Grid.Column="2"><TextBlock Text="Need review" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastUnresolvedTransferableRids}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"/></StackPanel>
+                                </Grid>
+                            </Border>
+                            <GroupBox Header="Write result"><Grid Margin="8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0"><TextBlock Text="Written" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastWritten}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
+                                <StackPanel Grid.Column="1"><TextBlock Text="Skipped" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastSkipped}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Failed" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastFailed}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
+                            </Grid></GroupBox>
+                        </StackPanel>
                     </GroupBox>
                 </StackPanel>
             </GroupBox>

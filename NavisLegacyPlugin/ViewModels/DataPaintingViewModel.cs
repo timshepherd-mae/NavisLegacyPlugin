@@ -192,7 +192,10 @@ namespace NavisLegacyPlugin.ViewModels
         private int _lastMatchedWithoutTransferableRid;
         public int LastMatchedWithoutTransferableRid { get { return _lastMatchedWithoutTransferableRid; } private set { _lastMatchedWithoutTransferableRid = value; OnPropertyChanged(); } }  
 
-        private void InvalidateExternalTransfer()
+        
+        private int _lastUnresolvedWithoutTransferableRid;
+        public int LastUnresolvedWithoutTransferableRid { get { return _lastUnresolvedWithoutTransferableRid; } private set { _lastUnresolvedWithoutTransferableRid = value; OnPropertyChanged(); } }
+private void InvalidateExternalTransfer()
         {
             IsExternalTransferValidated = false;
             Status = "Not validated";
@@ -237,7 +240,8 @@ namespace NavisLegacyPlugin.ViewModels
             LastTransferableRids = 0;
             LastMatchedTransferableRids = 0;
             LastUnresolvedTransferableRids = 0;
-            LastMatchedWithoutTransferableRid = 0;  
+            LastMatchedWithoutTransferableRid = 0;
+            LastUnresolvedWithoutTransferableRid = 0;  
             LastOutcomeSet = null;
             IsExternalTransferValidated = false;
             Status = "Not validated";
@@ -715,6 +719,9 @@ namespace NavisLegacyPlugin.ViewModels
             LastMatchedWithoutTransferableRid = outcomes.Count(
                 outcome => !HasTransferableRid(outcome) &&
                     outcome.Match.Status == TransferMatchStatus.Matched);
+            LastUnresolvedWithoutTransferableRid = outcomes.Count(
+                outcome => !HasTransferableRid(outcome) &&
+                    outcome.Match.Status != TransferMatchStatus.Matched);
         }
 
         private static bool HasTransferableRid(TransferOutcome outcome)

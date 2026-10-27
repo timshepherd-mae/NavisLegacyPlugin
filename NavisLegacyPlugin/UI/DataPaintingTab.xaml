@@ -8,195 +8,207 @@
             xmlns:local="clr-namespace:NavisLegacyPlugin"
 			DataContext="{Binding DataPainting}">
 
-	<UserControl.Resources>
-		<conv:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
-		<conv:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
-	</UserControl.Resources>
+    <UserControl.Resources>
+        <conv:EnumToBooleanConverter x:Key="EnumToBooleanConverter"/>
+        <conv:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+    </UserControl.Resources>
 
-	<Grid Margin="10">
+    <Grid Margin="10">
 
-		<Grid.RowDefinitions>
-			<RowDefinition Height="Auto"/>			<!-- Model Depth -->
-			<RowDefinition Height="Auto"/>			<!-- Collection Resolution -->
-			<RowDefinition Height="Auto"/>			<!-- Overwrite -->
-			<RowDefinition Height="Auto"/>			<!-- Get Model Collections -->
-			<RowDefinition Height="Auto"/>			<!-- Write Test -->
-			<RowDefinition Height="Auto"/>			<!-- GetSynchroData -->
-			<RowDefinition Height="Auto"/>			<!-- External SOURCE -->
-			<RowDefinition Height="Auto"/>			<!-- Transfer RID -->
-			<RowDefinition Height="Auto"/>            <!-- PURGE RID -->
-			<RowDefinition Height="Auto"/>			<!-- Progress bar -->
-			<RowDefinition Height="Auto"/>			<!-- Progress text -->
-			<RowDefinition Height="Auto"/>			<!-- Status -->
-		</Grid.RowDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Model Depth -->
+            <RowDefinition Height="Auto"/>
+            <!-- Collection Resolution -->
+            <RowDefinition Height="Auto"/>
+            <!-- Overwrite -->
+            <RowDefinition Height="Auto"/>
+            <!-- Get Model Collections -->
+            <RowDefinition Height="Auto"/>
+            <!-- Write Test -->
+            <RowDefinition Height="Auto"/>
+            <!-- GetSynchroData -->
+            <RowDefinition Height="Auto"/>
+            <!-- External SOURCE -->
+            <RowDefinition Height="Auto"/>
+            <!-- Transfer RID -->
+            <RowDefinition Height="Auto"/>
+            <!-- PURGE RID -->
+            <RowDefinition Height="Auto"/>
+            <!-- Progress bar -->
+            <RowDefinition Height="Auto"/>
+            <!-- Progress text -->
+            <RowDefinition Height="Auto"/>
+            <!-- Status -->
+        </Grid.RowDefinitions>
 
-		<!-- Model Depth -->
-		<GroupBox  Grid.Row="0" Header="Model Depth" Margin="5">
-			<StackPanel>
-				<RadioButton Content="Branch"
+        <!-- Model Depth -->
+        <GroupBox  Grid.Row="0" Header="Model Depth" Margin="5">
+            <StackPanel>
+                <RadioButton Content="Branch"
                      IsChecked="{Binding ModelDepth, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}" />
 
-				<RadioButton Content="All"
+                <RadioButton Content="All"
                      IsChecked="{Binding ModelDepth, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}" />
-			</StackPanel>
-		</GroupBox>
+            </StackPanel>
+        </GroupBox>
 
-		<!-- Phase 5.6 Collection Resolution UX -->
-		<GroupBox Grid.Row="1" Header="Selection Set Resolution" Margin="5">
-			<Grid>
-				<Grid.ColumnDefinitions>
-					<ColumnDefinition Width="*"/>
-					<ColumnDefinition Width="*"/>
-					<ColumnDefinition Width="*"/>
-				</Grid.ColumnDefinitions>
+        <!-- Phase 5.6 Collection Resolution UX -->
+        <GroupBox Grid.Row="1" Header="Selection Set Resolution" Margin="5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-				<StackPanel Grid.Column="0" Margin="5">
-					<TextBlock Text="SOURCE" FontWeight="Bold"/>
-					<RadioButton GroupName="SourceResolution" Content="All" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
-					<RadioButton GroupName="SourceResolution" Content="Branch" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
-					<RadioButton GroupName="SourceResolution" Content="Leaf" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
-				</StackPanel>
+                <StackPanel Grid.Column="0" Margin="5">
+                    <TextBlock Text="SOURCE" FontWeight="Bold"/>
+                    <RadioButton GroupName="SourceResolution" Content="All" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
+                    <RadioButton GroupName="SourceResolution" Content="Branch" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
+                    <RadioButton GroupName="SourceResolution" Content="Leaf" IsChecked="{Binding SourceResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
+                </StackPanel>
 
-				<StackPanel Grid.Column="1" Margin="5">
-					<TextBlock Text="TARGET" FontWeight="Bold"/>
-					<RadioButton GroupName="TargetResolution" Content="All" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
-					<RadioButton GroupName="TargetResolution" Content="Branch" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
-					<RadioButton GroupName="TargetResolution" Content="Leaf" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
-				</StackPanel>
+                <StackPanel Grid.Column="1" Margin="5">
+                    <TextBlock Text="TARGET" FontWeight="Bold"/>
+                    <RadioButton GroupName="TargetResolution" Content="All" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
+                    <RadioButton GroupName="TargetResolution" Content="Branch" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
+                    <RadioButton GroupName="TargetResolution" Content="Leaf" IsChecked="{Binding TargetResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
+                </StackPanel>
 
-				<StackPanel Grid.Column="2" Margin="5">
-					<TextBlock Text="EXPORT" FontWeight="Bold"/>
-					<RadioButton GroupName="ExportResolution" Content="All" IsChecked="{Binding ExportResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
-					<RadioButton GroupName="ExportResolution" Content="Branch" IsChecked="{Binding ExportResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
-					<RadioButton GroupName="ExportResolution" Content="Leaf" IsChecked="{Binding ExportResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
-				</StackPanel>
-			</Grid>
-		</GroupBox>
+                <StackPanel Grid.Column="2" Margin="5">
+                    <TextBlock Text="EXPORT" FontWeight="Bold"/>
+                    <RadioButton GroupName="ExportResolution" Content="All" IsChecked="{Binding ExportResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=All}"/>
+                    <RadioButton GroupName="ExportResolution" Content="Branch" IsChecked="{Binding ExportResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Branch}"/>
+                    <RadioButton GroupName="ExportResolution" Content="Leaf" IsChecked="{Binding ExportResolutionType, Mode=TwoWay, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Leaf}"/>
+                </StackPanel>
+            </Grid>
+        </GroupBox>
 
-		<!-- Overwrite -->
-		<GroupBox Grid.Row="2" Header="Overwrite" Margin="5">
-			<StackPanel>
+        <!-- Overwrite -->
+        <GroupBox Grid.Row="2" Header="Overwrite" Margin="5">
+            <StackPanel>
                 <CheckBox Content="Expect Duplicate GUIDs"
                           IsChecked="{Binding ExpectDuplicateGuids, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                           Margin="0,0,0,8"
                           ToolTip="Require a later file-aware strategy to verify GUID matches." />
-				<RadioButton Content="Yes"
+                <RadioButton Content="Yes"
                      IsChecked="{Binding Overwrite, Mode=TwoWay}" />
 
-				<RadioButton Content="Skip"
+                <RadioButton Content="Skip"
                      IsChecked="{Binding Overwrite, Converter={StaticResource InverseBooleanConverter}, Mode=TwoWay}" />
-			</StackPanel>
-		</GroupBox>
+            </StackPanel>
+        </GroupBox>
 
-		<!-- Get Model Collections -->
-		<StackPanel Grid.Row="3" Orientation="Vertical" Margin="0">
+        <!-- Get Model Collections -->
+        <StackPanel Grid.Row="3" Orientation="Vertical" Margin="0">
 
-			<!-- ✅ COLLECTION A -->
-			<GroupBox Header="Collection A" Margin="5">
-				<StackPanel Orientation="Horizontal" Margin="5">
-					<Button Content="Capture Selection"
+            <!-- ✅ COLLECTION A -->
+            <GroupBox Header="Collection A" Margin="5">
+                <StackPanel Orientation="Horizontal" Margin="5">
+                    <Button Content="Capture Selection"
 						Width="120"
 						Margin="5"
 						Command="{Binding CaptureSelectionACommand}" />
 
-					<Button Content="Clear"
+                    <Button Content="Clear"
 						Width="80"
 						Margin="5"
 						Command="{Binding ClearSelectionACommand}" />
 
-					<Button Content="Show"
+                    <Button Content="Show"
 						Width="70"
 						Margin="5"
 						Command="{Binding ShowSelectionACommand}" />
 
-					<TextBlock Margin="10,0,0,0"
+                    <TextBlock Margin="10,0,0,0"
 						VerticalAlignment="Center"
 						Text="{Binding CollectionACount, StringFormat='Items: {0}'}"/>
-				</StackPanel>
-			</GroupBox>
+                </StackPanel>
+            </GroupBox>
 
-			<!-- ✅ COLLECTION B -->
-			<GroupBox Header="Collection B" Margin="5">
-				<StackPanel Orientation="Horizontal" Margin="5">
-					<Button Content="Capture Selection"
+            <!-- ✅ COLLECTION B -->
+            <GroupBox Header="Collection B" Margin="5">
+                <StackPanel Orientation="Horizontal" Margin="5">
+                    <Button Content="Capture Selection"
 						Width="120"
 						Margin="5"
 						Command="{Binding CaptureSelectionBCommand}" />
 
-					<Button Content="Clear"
+                    <Button Content="Clear"
 						Width="80"
 						Margin="5"
 						Command="{Binding ClearSelectionBCommand}" />
 
-					<Button Content="Show"
+                    <Button Content="Show"
 						Width="70"
 						Margin="5"
 						Command="{Binding ShowSelectionBCommand}" />
 
-					<TextBlock Margin="10,0,0,0"
+                    <TextBlock Margin="10,0,0,0"
 						VerticalAlignment="Center"
 						Text="{Binding CollectionBCount, StringFormat='Items: {0}'}"/>
-				</StackPanel>
-			</GroupBox>
+                </StackPanel>
+            </GroupBox>
 
-		</StackPanel>
+        </StackPanel>
 
 
-		<!-- Write Section -->
-		<GroupBox Grid.Row="4" Header="Write Property" Margin="5">
-			<Grid Margin="5">
-				<Grid.ColumnDefinitions>
-					<ColumnDefinition Width="140"/>
-					<ColumnDefinition Width="*"/>
-				</Grid.ColumnDefinitions>
+        <!-- Write Section -->
+        <GroupBox Grid.Row="4" Header="Write Property" Margin="5">
+            <Grid Margin="5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-				<Grid.RowDefinitions>
-					<RowDefinition Height="Auto"/>
-					<RowDefinition Height="Auto"/>
-					<RowDefinition Height="Auto"/>
-					<RowDefinition Height="Auto"/>
-				</Grid.RowDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-				<!-- Write Button -->
-				<Button Grid.Row="0" Grid.Column="0"
+                <!-- Write Button -->
+                <Button Grid.Row="0" Grid.Column="0"
                 Content="Write to Selected"
                 Width="120"
                 Margin="0,0,10,5"
                 Command="{Binding WriteTestCommand}"
                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
 
-				<!-- Property Tab -->
-				<Button Grid.Row="0" Grid.Column="1"
+                <!-- Property Tab -->
+                <Button Grid.Row="0" Grid.Column="1"
                 Margin="-5,0,5,5"
                 Command="{Binding EditPropertyTabCommand}">
-					<TextBlock>
+                    <TextBlock>
                 <Run Text="Tab: "/>
                 <Run Text="{Binding PropertyTabName, TargetNullValue='[Set]'}"/>
-					</TextBlock>
-				</Button>
+                    </TextBlock>
+                </Button>
 
-				<!-- Property Name -->
-				<Button Grid.Row="1" Grid.Column="1"
+                <!-- Property Name -->
+                <Button Grid.Row="1" Grid.Column="1"
                 Margin="-5,0,5,5"
                 Command="{Binding EditPropertyNameCommand}">
-					<TextBlock>
+                    <TextBlock>
                 <Run Text="Name: "/>
                 <Run Text="{Binding PropertyName, TargetNullValue='[Set]'}"/>
-					</TextBlock>
-				</Button>
+                    </TextBlock>
+                </Button>
 
-				<!-- Property Value -->
-				<Button Grid.Row="2" Grid.Column="1"
+                <!-- Property Value -->
+                <Button Grid.Row="2" Grid.Column="1"
 				Margin="-5,0,5,5"		
                 Command="{Binding EditPropertyValueCommand}">
-					<TextBlock>
+                    <TextBlock>
                 <Run Text="Value: "/>
                 <Run Text="{Binding PropertyValue, TargetNullValue='[Set]'}"/>
-					</TextBlock>
-				</Button>
+                    </TextBlock>
+                </Button>
 
-			</Grid>
-		</GroupBox>
+            </Grid>
+        </GroupBox>
 
         <!-- Synchro Data File + Get Synchro Data button -->
         <StackPanel Grid.Row="5"
@@ -232,8 +244,8 @@
             IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
 
         </StackPanel>
-        
-        
+
+
         <!-- External SOURCE -->
         <GroupBox Grid.Row="6" Header="External SOURCE" Margin="5,10,5,0">
             <StackPanel>
@@ -278,27 +290,27 @@
 			Margin="0,10,0,0"
 			Command="{Binding TransferRidCommand}"
 				IsEnabled="True" />
-		
-		
-		<!-- Progress bar -->
-		<ProgressBar Grid.Row="9"
+
+
+        <!-- Progress bar -->
+        <ProgressBar Grid.Row="9"
 				 Height="18"
 				 Margin="0,10,0,0"
 				 Minimum="0"
 				 Maximum="100"
 				 Value="{Binding ProgressPercent}" />
 
-		<!-- Progress text -->
-		<TextBlock Grid.Row="11"
+        <!-- Progress text -->
+        <TextBlock Grid.Row="11"
 			   Margin="0,6,0,0"
 			   Text="{Binding ProgressText}" />
 
-		<!-- Status -->
-		<TextBlock Grid.Row="10"
+        <!-- Status -->
+        <TextBlock Grid.Row="10"
                Margin="0,10,0,0"
                Text="{Binding Status}" />
 
 
-	</Grid>
-	
+    </Grid>
+
 </UserControl>
