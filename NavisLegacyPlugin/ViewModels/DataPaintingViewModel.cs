@@ -16,6 +16,7 @@ using NavisLegacyPlugin.Services;
 using NavisLegacyPlugin.Models;
 using NavisLegacyPlugin.Models.Collections;
 using NavisLegacyPlugin.Models.ExternalSources;
+using NavisLegacyPlugin.Models.Execution;
 using NavisLegacyPlugin.Services.Lookups;
 using NavisLegacyPlugin.Services.DataSources;
 using NavisLegacyPlugin.Services.Execution;
@@ -168,6 +169,8 @@ namespace NavisLegacyPlugin.ViewModels
             private set { _isExternalTransferValidated = value; OnPropertyChanged(); }
         }
 
+        private TransferOutcomeSet _lastOutcomeSet;
+        public TransferOutcomeSet LastOutcomeSet { get { return _lastOutcomeSet; } private set { _lastOutcomeSet = value; OnPropertyChanged(); } }
         private int _lastMatched;
         public int LastMatched { get { return _lastMatched; } private set { _lastMatched = value; OnPropertyChanged(); } }
         private int _lastUnmatched;
@@ -178,6 +181,16 @@ namespace NavisLegacyPlugin.ViewModels
         public int LastSkipped { get { return _lastSkipped; } private set { _lastSkipped = value; OnPropertyChanged(); } }
         private int _lastFailed;
         public int LastFailed { get { return _lastFailed; } private set { _lastFailed = value; OnPropertyChanged(); } }
+        private int _lastSourceItems;
+        public int LastSourceItems { get { return _lastSourceItems; } private set { _lastSourceItems = value; OnPropertyChanged(); } }
+        private int _lastTransferableRids;
+        public int LastTransferableRids { get { return _lastTransferableRids; } private set { _lastTransferableRids = value; OnPropertyChanged(); } }
+        private int _lastMatchedTransferableRids;
+        public int LastMatchedTransferableRids { get { return _lastMatchedTransferableRids; } private set { _lastMatchedTransferableRids = value; OnPropertyChanged(); } }
+        private int _lastUnresolvedTransferableRids;
+        public int LastUnresolvedTransferableRids { get { return _lastUnresolvedTransferableRids; } private set { _lastUnresolvedTransferableRids = value; OnPropertyChanged(); } }
+        private int _lastMatchedWithoutTransferableRid;
+        public int LastMatchedWithoutTransferableRid { get { return _lastMatchedWithoutTransferableRid; } private set { _lastMatchedWithoutTransferableRid = value; OnPropertyChanged(); } }  
 
         private void InvalidateExternalTransfer()
         {
@@ -220,6 +233,12 @@ namespace NavisLegacyPlugin.ViewModels
             LastWritten = 0;
             LastSkipped = 0;
             LastFailed = 0;
+            LastSourceItems = 0;
+            LastTransferableRids = 0;
+            LastMatchedTransferableRids = 0;
+            LastUnresolvedTransferableRids = 0;
+            LastMatchedWithoutTransferableRid = 0;  
+            LastOutcomeSet = null;
             IsExternalTransferValidated = false;
             Status = "Not validated";
             Debug.WriteLine("[PHASE65B3] UI hard reset completed.");
@@ -654,11 +673,14 @@ namespace NavisLegacyPlugin.ViewModels
                     progressConfig,
                     selectionSets);
 
-                LastMatched = result.matched;
-                LastUnmatched = result.unmatched;
-                LastWritten = result.written;
-                LastSkipped = result.skipped;
-                LastFailed = result.failed;
+                LastOutcomeSet = result.Outcomes;
+
+                LastMatched = result.Matched;
+                LastUnmatched = result.Unmatched;
+                LastWritten = result.Written;
+                LastSkipped = result.Skipped;
+                LastFailed = result.Failed;
+                ApplyExternalRidSummary(result.Outcomes);  
                 Status = "transfer complete";
                 Debug.WriteLine("[PHASE65B3] Transfer complete. Matched=" + LastMatched
                     + ", Unmatched=" + LastUnmatched + ", Written=" + LastWritten
@@ -674,6 +696,46 @@ namespace NavisLegacyPlugin.ViewModels
             {
                 IsBusy = false;
             }
+        }
+
+        private void ApplyExternalRidSummary(TransferOutcomeSet outcomeSet)
+        {
+            var outcomes = outcomeSet == null
+                ? new List<TransferOutcome>()
+                : outcomeSet.Outcomes.ToList();
+
+            LastSourceItems = outcomes.Count;
+            LastTransferableRids = outcomes.Count(HasTransferableRid);
+            LastMatchedTransferableRids = outcomes.Count(
+                outcome => HasTransferableRid(outcome) &&
+                    outcome.Match.Status == TransferMatchStatus.Matched);
+            LastUnresolvedTransferableRids = outcomes.Count(
+                outcome => HasTransferableRid(outcome) &&
+                    outcome.Match.Status != TransferMatchStatus.Matched);
+            LastMatchedWithoutTransferableRid = outcomes.Count(
+                outcome => !HasTransferableRid(outcome) &&
+                    outcome.Match.Status == TransferMatchStatus.Matched);
+        }
+
+        private static bool HasTransferableRid(TransferOutcome outcome)
+        {
+            if (outcome == null || outcome.Payload == null)
+                return false;
+
+            TransferPayloadValue rid = outcome.Payload.FirstOrDefault(
+                value => value != null &&
+                    string.Equals(
+                        value.Name,
+                        "MAE-4D.RID",
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (rid == null || string.IsNullOrWhiteSpace(rid.Value))
+                return false;
+
+            return !string.Equals(
+                rid.Value.Trim(),
+                "\"\"",
+                StringComparison.Ordinal);
         }
 
         private static void LogPhase72Timing(string stage, Stopwatch stopwatch)

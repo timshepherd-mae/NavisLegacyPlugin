@@ -1,17 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Models;
 using NavisLegacyPlugin.Models.Execution;
-using NavisLegacyPlugin.Models.Scopes;
 using NavisLegacyPlugin.Models.ExternalSources;
+using NavisLegacyPlugin.Models.Scopes;
 using NavisLegacyPlugin.Services.Collections;
-using NavisLegacyPlugin.Services.SelectionSets;
 using NavisLegacyPlugin.Services.Matching;
+using NavisLegacyPlugin.Services.SelectionSets;
 
 namespace NavisLegacyPlugin.Services.Execution
 {
@@ -22,7 +21,8 @@ namespace NavisLegacyPlugin.Services.Execution
         private readonly ITransferScopeResolver _scopeResolver;
         private readonly ITransferScopeCollectionResolver _scopeCollectionResolver;
 
-        public ExecuteSignatureExecutor(ComPropertyWriteService writer)
+        public ExecuteSignatureExecutor(
+            ComPropertyWriteService writer)
             : this(
                 writer,
                 new DataTransferHierarchyValidator(
@@ -38,314 +38,236 @@ namespace NavisLegacyPlugin.Services.Execution
             ITransferScopeResolver scopeResolver,
             ITransferScopeCollectionResolver scopeCollectionResolver)
         {
-            if (writer == null)
-                throw new ArgumentNullException(nameof(writer));
-            if (hierarchyValidator == null)
-                throw new ArgumentNullException(nameof(hierarchyValidator));
-            if (scopeResolver == null)
-                throw new ArgumentNullException(nameof(scopeResolver));
-            if (scopeCollectionResolver == null)
-                throw new ArgumentNullException(nameof(scopeCollectionResolver));
-            _writer = writer;
-            _hierarchyValidator = hierarchyValidator;
-            _scopeResolver = scopeResolver;
-            _scopeCollectionResolver = scopeCollectionResolver;
+            _writer = writer
+                ?? throw new ArgumentNullException("writer");
+
+            _hierarchyValidator = hierarchyValidator
+                ?? throw new ArgumentNullException("hierarchyValidator");
+
+            _scopeResolver = scopeResolver
+                ?? throw new ArgumentNullException("scopeResolver");
+
+            _scopeCollectionResolver = scopeCollectionResolver
+                ?? throw new ArgumentNullException("scopeCollectionResolver");
         }
 
         public Task<ExecuteResult> ExecuteAsync(
             ExecuteSignature signature)
         {
-            return ExecuteAsync(signature, null);
+            return ExecuteLegacyAsync(signature);
         }
 
-        /// <summary>
-        /// Executes the existing pipeline with an optional host-side external SOURCE boundary.
-        /// Existing callers use the unchanged overload above and retain current behaviour.
-        /// </summary>
         public Task<ExecuteResult> ExecuteAsync(
             ExecuteSignature signature,
-            ExternalSourcePopulation externalSourcePopulation)
+            ExternalSourcePopulation external)
         {
-            return ExecuteAsync(signature, externalSourcePopulation, null);
+            return ExecuteAsync(
+                signature,
+                external,
+                null);
         }
 
-        /// <summary>
-        /// Executes with an optional ordered row matcher. Existing overloads retain
-        /// the Phase 6.4 single-value lookup behaviour.
-        /// </summary>
         public async Task<ExecuteResult> ExecuteAsync(
             ExecuteSignature signature,
-            ExternalSourcePopulation externalSourcePopulation,
-            IRowMatchResolver rowMatchResolver)
+            ExternalSourcePopulation external,
+            IRowMatchResolver resolver)
         {
+            if (external == null || resolver == null)
+            {
+                return await ExecuteLegacyAsync(signature);
+            }
 
+            return await ExecuteExternalDetailedAsync(
+                signature,
+                external,
+                resolver);
+        }
+
+        private async Task<ExecuteResult> ExecuteExternalDetailedAsync(
+            ExecuteSignature signature,
+            ExternalSourcePopulation population,
+            IRowMatchResolver resolver)
+        {
             if (signature == null)
-                throw new ArgumentNullException(nameof(signature));
-
-            if (signature.DataSource == null)
-                throw new ArgumentException(
-                    "DataSource is required.");
-
-            if (signature.MappingStrategy == null)
-                throw new ArgumentException(
-                    "MappingStrategy is required.");
-
-            if (signature.LookupProvider == null)
-                throw new ArgumentException(
-                    "LookupProvider is required.");
-
-            ScopeResolution sourceScope = null;
-            ScopeResolution targetScope = null;
-
-            if (signature.SelectionSets != null)
             {
-                Document document = Application.ActiveDocument;
-                if (externalSourcePopulation == null)
-                {
-                    ValidateRequiredScope(document, DataTransferSelectionSetNames.Source);
-                    sourceScope = _scopeResolver.Resolve(
-                        document,
-                        new ScopeDefinition(
-                            TransferScopeType.Source,
-                            new CurrentDocumentLocation(),
-                            signature.SelectionSets.SourcePath));
-                }
-
-                ValidateRequiredScope(document, DataTransferSelectionSetNames.Target);
-                targetScope = _scopeResolver.Resolve(
-                    document,
-                    new ScopeDefinition(
-                        TransferScopeType.Target,
-                        new CurrentDocumentLocation(),
-                        signature.SelectionSets.TargetPath));
-
+                throw new ArgumentNullException("signature");
             }
 
+            DataTable table =
+                await signature.DataSource.GetDataAsync(
+                    signature.ProgressConfig.ProgressText);
 
-            var lookupDict = await signature.LookupProvider.BuildLookupAsync(signature.ProgressConfig);
+            var builders =
+                new Dictionary<int, OutcomeBuilder>();
 
-
-            IEnumerable<ModelItem> sourceItems = GetScopeItems(
-                sourceScope,
-                signature.SelectionSets == null
-                    ? null
-                    : signature.SelectionSets.SourceResolutionType);
-
-
-            IEnumerable<ModelItem> targetItems = GetScopeItems(
-                targetScope,
-                signature.SelectionSets == null
-                    ? null
-                    : signature.SelectionSets.TargetResolutionType);
-
-
-            List<ModelItem> resolvedSourceItems =
-                sourceItems == null ? null : sourceItems.ToList();
-            List<ModelItem> resolvedTargetItems =
-                targetItems == null ? null : targetItems.ToList();
-
-
-            HashSet<Guid> sourceBoundary = externalSourcePopulation != null
-                ? new HashSet<Guid>(externalSourcePopulation.InstanceGuids)
-                : resolvedSourceItems == null
-                    ? null
-                    : new HashSet<Guid>(
-                        resolvedSourceItems.Select(item => item.InstanceGuid));
-
-            HashSet<Guid> targetBoundary = resolvedTargetItems == null
-                ? null
-                : new HashSet<Guid>(
-                    resolvedTargetItems.Select(item => item.InstanceGuid));
-
-            if (sourceBoundary != null)
+            for (int i = 0; i < population.Items.Count; i++)
             {
-                lookupDict = lookupDict
-                    .Where(pair =>
-                        pair.Value != null &&
-                        sourceBoundary.Contains(pair.Value.InstanceGuid))
-                    .ToDictionary(
-                        pair => pair.Key,
-                        pair => pair.Value,
-                        StringComparer.OrdinalIgnoreCase);
+                builders[i] =
+                    new OutcomeBuilder(
+                        i,
+                        population.Items[i]);
             }
 
+            var writeMap =
+                new Dictionary<
+                    ModelItem,
+                    Dictionary<
+                        string,
+                        Dictionary<string, PendingWrite>>>();
 
-            var statistics = new TransferStatistics();
+            int processed = 0;
 
-            var table = await signature.DataSource.GetDataAsync(signature.ProgressConfig.ProgressText);
-
-
-            var itemWriteMap =
-                new Dictionary<ModelItem, Dictionary<string, Dictionary<string, string>>>();
-
-            int totalRows = table.Rows.Count;
-            int rowIndex = 0;
-
-            signature.ProgressConfig.ProgressText?.Report("Grouping data...");
-
-            var mappingStrategy = signature.MappingStrategy;
+            signature.ProgressConfig.ProgressText?
+                .Report("Grouping data...");
 
             foreach (DataRow row in table.Rows)
             {
-                rowIndex++;
+                processed++;
 
-                var instruction = mappingStrategy.Map(row);
+                // Phase 7.3 SOURCE correlation.
+                //
+                // __SourceRowIndex is populated by
+                // ExternalSourcePopulationAdapter from the ordered
+                // ExternalModelItemSnapshot collection.
+                //
+                // Defensive fallback:
+                // if the reserved column is absent or contains DBNull,
+                // use the zero-based DataTable row ordinal rather than
+                // attempting to convert DBNull to Int32.
+                int sourceRowIndex = processed - 1;
+
+                if (row.Table.Columns.Contains("__SourceRowIndex"))
+                {
+                    object sourceRowIndexValue =
+                        row["__SourceRowIndex"];
+
+                    if (sourceRowIndexValue != null &&
+                        sourceRowIndexValue != DBNull.Value)
+                    {
+                        sourceRowIndex =
+                            Convert.ToInt32(
+                                sourceRowIndexValue);
+                    }
+                }
+
+                OutcomeBuilder builder;
+
+                if (!builders.TryGetValue(
+                    sourceRowIndex,
+                    out builder))
+                {
+                    continue;
+                }
+
+                var instruction =
+                    signature.MappingStrategy.Map(row);
 
                 if (instruction == null)
-                    continue;
-
-                if (rowMatchResolver == null &&
-                    string.IsNullOrWhiteSpace(instruction.MatchValue))
-                    continue;
-
-
-                ModelItem item;
-                if (rowMatchResolver != null)
                 {
-                    MatchResolution match = rowMatchResolver.Resolve(row);
-                    if (match.Status != MatchResolutionStatus.Matched || match.Item == null)
-                    {
-                        statistics.Record(
-                            MatchOutcome.Unmatched(
-                                rowIndex,
-                                "Ordered resolver did not return one final target."));
-                        continue;
-                    }
-                    item = match.Item;
-                }
-                else if (!lookupDict.TryGetValue(instruction.MatchValue, out item))
-                {
-                    statistics.Record(
-                        MatchOutcome.Unmatched(
-                            rowIndex,
-                            "Legacy lookup did not return a target."));
+                    builder.Match =
+                        new TransferMatchResult(
+                            TransferMatchStatus.MissingKey,
+                            string.Empty,
+                            string.Empty,
+                            "Mapping did not produce an executable instruction.",
+                            null);
+
                     continue;
                 }
 
-                if (targetBoundary != null &&
-                    !targetBoundary.Contains(item.InstanceGuid))
+                MatchResolution match =
+                    resolver.Resolve(row);
+
+                builder.Match =
+                    ToTransferMatchResult(match);
+
+                if (match.Status !=
+                        MatchResolutionStatus.Matched ||
+                    match.Item == null)
                 {
-                    statistics.Record(
-                        MatchOutcome.Unmatched(
-                            rowIndex,
-                            "Resolved target is outside the TARGET boundary."));
                     continue;
                 }
 
-                statistics.Record(MatchOutcome.Matched(rowIndex));
-
-                foreach (var tab in instruction.PropertiesByTab)
+                foreach (var tab
+                    in instruction.PropertiesByTab)
                 {
-                    if (!itemWriteMap.TryGetValue(item, out var tabDict))
+                    Dictionary<
+                        string,
+                        Dictionary<string, PendingWrite>>
+                        tabs;
+
+                    if (!writeMap.TryGetValue(
+                        match.Item,
+                        out tabs))
                     {
-                        tabDict = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-                        itemWriteMap[item] = tabDict;
+                        tabs =
+                            new Dictionary<
+                                string,
+                                Dictionary<string, PendingWrite>>(
+                                    StringComparer.OrdinalIgnoreCase);
+
+                        writeMap[match.Item] = tabs;
                     }
 
-                    if (!tabDict.TryGetValue(tab.Key, out var propDict))
+                    Dictionary<string, PendingWrite>
+                        properties;
+
+                    if (!tabs.TryGetValue(
+                        tab.Key,
+                        out properties))
                     {
-                        propDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                        tabDict[tab.Key] = propDict;
+                        properties =
+                            new Dictionary<
+                                string,
+                                PendingWrite>(
+                                    StringComparer.OrdinalIgnoreCase);
+
+                        tabs[tab.Key] = properties;
                     }
 
-                    foreach (var kvp in tab.Value)
-                        propDict[kvp.Key] = kvp.Value;
-                }
-
-                if (rowIndex % 50 == 0) // throttle
-                {
-                    int percent = 35 + (rowIndex * 30 / totalRows);
-                    signature.ProgressConfig.ProgressPercent?.Report(percent);
-                    signature.ProgressConfig.ProgressText?.Report($"Grouping {rowIndex}/{totalRows}");
-
-                    await System.Windows.Application.Current.Dispatcher
-                        .InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
-                }
-
-            }
-
-            int totalItems = itemWriteMap.Count;
-            int writeIndex = 0;
-
-            signature.ProgressConfig.ProgressText?.Report("Writing data...");
-
-            foreach (var entry in itemWriteMap)
-            {
-                writeIndex++;
-
-                var writeTargetItems = new List<ModelItem>();
-
-                if (signature.WriteConfig.WriteToLeafItems)
-                {
-                    IModelItemCollectionResolver writeResolver =
-                        new ModelItemCollectionResolver();
-                    Models.Collections.CollectionResolutionResult writeResult =
-                        writeResolver.Resolve(new[] { entry.Key });
-
-                    writeTargetItems.AddRange(
-                        writeResult.GetItems(
-                            Models.Collections.CollectionResolutionType.Leaf));
-                }
-                else
-                {
-                    // Legacy compatibility: false means the matched item only.
-                    writeTargetItems.Add(entry.Key);
-                }
-
-                foreach (var targetItem in writeTargetItems)
-                {
-                    if (targetBoundary != null &&
-                        !targetBoundary.Contains(targetItem.InstanceGuid))
+                    foreach (var property
+                        in tab.Value)
                     {
-                        statistics.RecordSkipped();
-                        continue;
-                    }
-
-                    foreach (var tab in entry.Value)
-                    {
-                        foreach (var prop in tab.Value)
+                                                // Approved Phase 7.3 defect correction:
+                        // SOURCE rows without a transferable RID may still match a TARGET,
+                        // but they must not create an MAE-4D/RID write operation.  Leaving
+                        // the builder with no applicable operation causes the retained
+                        // SOURCE-level operation status to remain NotApplicable.
+                        if (IsNonTransferableExternalRid(tab.Key, property.Key, property.Value))
                         {
-                            var categoryName = tab.Key;
-                            var propName = prop.Key;
-                            var propValue = prop.Value;
-
-                            var category =
-                                targetItem.PropertyCategories
-                                    .FindCategoryByDisplayName(
-                                        categoryName);
-
-                            var existingProp =
-                                category?
-                                    .Properties
-                                    .FindPropertyByDisplayName(
-                                        propName);
-
-                            if (!signature.WriteConfig.Overwrite)
-                            {
-                                if (existingProp != null)
-                                {
-                                    statistics.RecordSkipped();
-                                    continue;
-                                }
-                            }
-
-                            _writer.WriteUserDefinedProperties(
-                                targetItem,
-                                categoryName,
-                                new Dictionary<string, string>
-                                {
-                        { propName, propValue }
-                                });
-
-                            statistics.RecordWritten();
+                            continue;
                         }
+                        PendingWrite pendingWrite;
+
+                        if (!properties.TryGetValue(
+                            property.Key,
+                            out pendingWrite))
+                        {
+                            pendingWrite =
+                                new PendingWrite(
+                                    tab.Key,
+                                    property.Key,
+                                    property.Value);
+
+                            properties[property.Key] =
+                                pendingWrite;
+                        }
+
+                        pendingWrite.Builders.Add(
+                            builder);
                     }
                 }
 
-                if (writeIndex % 10 == 0)
+                if (processed % 50 == 0)
                 {
                     int percent =
-                        65 + (writeIndex * 35 / totalItems);
+                        35 +
+                        (
+                            processed * 30 /
+                            Math.Max(
+                                1,
+                                table.Rows.Count)
+                        );
 
                     signature.ProgressConfig
                         .ProgressPercent?
@@ -354,80 +276,560 @@ namespace NavisLegacyPlugin.Services.Execution
                     signature.ProgressConfig
                         .ProgressText?
                         .Report(
-                            $"Writing {writeIndex}/{totalItems}");
+                            "Grouping " +
+                            processed +
+                            "/" +
+                            table.Rows.Count);
 
-                    await System.Windows.Application.Current
-                        .Dispatcher.InvokeAsync(
+                    await System.Windows.Application
+                        .Current
+                        .Dispatcher
+                        .InvokeAsync(
                             () => { },
                             System.Windows.Threading
-                                .DispatcherPriority.Background);
+                                .DispatcherPriority
+                                .Background);
                 }
             }
 
-            signature.ProgressConfig.ProgressPercent?.Report(100);
-            signature.ProgressConfig.ProgressText?.Report("Complete.");
+            int writeIndex = 0;
 
-            return new ExecuteResult(
-                statistics.Matched,
-                statistics.Unmatched,
-                statistics.Written,
-                statistics.Skipped);
-        }
-
-        private void CollectLeafItems(ModelItem item, List<ModelItem> results)
-        {
-            if (item == null) return;
-
-            if (item.Children == null || !item.Children.Any())
+            foreach (var targetEntry in writeMap)
             {
-                if (!results.Contains(item))
-                    results.Add(item);
-                return;
+                writeIndex++;
+
+                foreach (var tabEntry
+                    in targetEntry.Value)
+                {
+                    foreach (PendingWrite pendingWrite
+                        in tabEntry.Value.Values)
+                    {
+                        var category =
+                            targetEntry.Key
+                                .PropertyCategories
+                                .FindCategoryByDisplayName(
+                                    pendingWrite.Tab);
+
+                        var existingProperty =
+                            category?
+                                .Properties
+                                .FindPropertyByDisplayName(
+                                    pendingWrite.Property);
+
+                        if (!signature.WriteConfig.Overwrite &&
+                            existingProperty != null)
+                        {
+                            pendingWrite.AddResult(
+                                TransferOperationStatus.Skipped,
+                                "Existing value preserved.",
+                                string.Empty);
+
+                            continue;
+                        }
+
+                        try
+                        {
+                            _writer.WriteUserDefinedProperties(
+                                targetEntry.Key,
+                                pendingWrite.Tab,
+                                new Dictionary<string, string>
+                                {
+                                    {
+                                        pendingWrite.Property,
+                                        pendingWrite.Value
+                                    }
+                                });
+
+                            pendingWrite.AddResult(
+                                TransferOperationStatus.Written,
+                                "Property written.",
+                                string.Empty);
+                        }
+                        catch (Exception exception)
+                        {
+                            // Phase 7.3:
+                            // retain this operation failure but allow
+                            // unrelated property operations to continue.
+                            pendingWrite.AddResult(
+                                TransferOperationStatus.Failed,
+                                "Property write failed.",
+                                exception.Message);
+                        }
+                    }
+                }
+
+                if (writeIndex % 10 == 0)
+                {
+                    int percent =
+                        65 +
+                        (
+                            writeIndex * 35 /
+                            Math.Max(
+                                1,
+                                writeMap.Count)
+                        );
+
+                    signature.ProgressConfig
+                        .ProgressPercent?
+                        .Report(percent);
+
+                    signature.ProgressConfig
+                        .ProgressText?
+                        .Report(
+                            "Writing " +
+                            writeIndex +
+                            "/" +
+                            writeMap.Count);
+
+                    await System.Windows.Application
+                        .Current
+                        .Dispatcher
+                        .InvokeAsync(
+                            () => { },
+                            System.Windows.Threading
+                                .DispatcherPriority
+                                .Background);
+                }
             }
 
-            foreach (ModelItem child in item.Children)
-                CollectLeafItems(child, results);
+            List<TransferOutcome> outcomes =
+                builders
+                    .OrderBy(pair => pair.Key)
+                    .Select(
+                        pair =>
+                            pair.Value.CreateOutcome())
+                    .ToList();
+
+            TransferExecutionStatus executionStatus =
+                outcomes.Any(
+                    outcome =>
+                        outcome.OperationStatus ==
+                        TransferOperationStatus.Failed)
+                    ? TransferExecutionStatus
+                        .CompletedWithFailures
+                    : TransferExecutionStatus
+                        .Completed;
+
+            var outcomeSet =
+                new TransferOutcomeSet(
+                    Guid.NewGuid().ToString("D"),
+                    population.SourceFile,
+                    population.ExportSetName,
+                    population.ResolutionType,
+                    signature.SelectionSets?
+                        .TargetResolutionType
+                        .ToString(),
+                    executionStatus,
+                    outcomes);
+
+            signature.ProgressConfig
+                .ProgressPercent?
+                .Report(100);
+
+            signature.ProgressConfig
+                .ProgressText?
+                .Report("Complete.");
+
+            return new ExecuteResult(outcomeSet);
         }
 
-
-        private static string FormatResolutionType(
-            Models.Collections.CollectionResolutionType? resolutionType)
+        private async Task<ExecuteResult>
+            ExecuteLegacyAsync(
+                ExecuteSignature signature)
         {
-            return resolutionType.HasValue
-                ? resolutionType.Value.ToString()
-                : "<null: legacy direct-items path>";
+            if (signature == null)
+            {
+                throw new ArgumentNullException(
+                    "signature");
+            }
+
+            var lookup =
+                await signature.LookupProvider
+                    .BuildLookupAsync(
+                        signature.ProgressConfig);
+
+            DataTable table =
+                await signature.DataSource
+                    .GetDataAsync(
+                        signature.ProgressConfig
+                            .ProgressText);
+
+            int matched = 0;
+            int unmatched = 0;
+            int written = 0;
+            int skipped = 0;
+
+            foreach (DataRow row in table.Rows)
+            {
+                var instruction =
+                    signature.MappingStrategy.Map(row);
+
+                if (instruction == null ||
+                    string.IsNullOrWhiteSpace(
+                        instruction.MatchValue))
+                {
+                    unmatched++;
+                    continue;
+                }
+
+                ModelItem item;
+
+                if (!lookup.TryGetValue(
+                    instruction.MatchValue,
+                    out item))
+                {
+                    unmatched++;
+                    continue;
+                }
+
+                matched++;
+
+                foreach (var tab
+                    in instruction.PropertiesByTab)
+                {
+                    foreach (var property
+                        in tab.Value)
+                    {
+                        var category =
+                            item.PropertyCategories
+                                .FindCategoryByDisplayName(
+                                    tab.Key);
+
+                        var existingProperty =
+                            category?
+                                .Properties
+                                .FindPropertyByDisplayName(
+                                    property.Key);
+
+                        if (!signature.WriteConfig.Overwrite &&
+                            existingProperty != null)
+                        {
+                            skipped++;
+                            continue;
+                        }
+
+                        _writer.WriteUserDefinedProperties(
+                            item,
+                            tab.Key,
+                            new Dictionary<string, string>
+                            {
+                                {
+                                    property.Key,
+                                    property.Value
+                                }
+                            });
+
+                        written++;
+                    }
+                }
+            }
+
+            return new ExecuteResult(
+                matched,
+                unmatched,
+                written,
+                skipped);
         }
 
-        private IEnumerable<ModelItem> GetScopeItems(
-            ScopeResolution scopeResolution,
-            Models.Collections.CollectionResolutionType? resolutionType)
+        private static bool IsNonTransferableExternalRid(
+            string tabName,
+            string propertyName,
+            string value)
         {
-            if (scopeResolution == null)
-                return null;
+            if (!string.Equals(
+                    tabName,
+                    "MAE-4D",
+                    StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(
+                    propertyName,
+                    "RID",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
 
-            // Preserve the legacy/default population when no explicit
-            // All/Branch/Leaf resolution has been selected.
-            if (!resolutionType.HasValue)
-                return scopeResolution.Items;
-
-            IReadOnlyCollection<ModelItem> resolvedItems =
-                _scopeCollectionResolver.Resolve(
-                    scopeResolution,
-                    resolutionType.Value);
-
-            return resolvedItems;
+            // Keep this eligibility rule local to the external RID transfer path.
+            // Other generic property-writing workflows are still allowed to write
+            // an empty string where that behaviour is intentional.
+            return string.IsNullOrWhiteSpace(value) ||
+                string.Equals(value.Trim(), "\"\"", StringComparison.Ordinal);
         }
-
-        private void ValidateRequiredScope(
-            Document document,
-            string scopeName)
+        private static TransferMatchResult
+            ToTransferMatchResult(
+                MatchResolution match)
         {
-            DataTransferHierarchyValidationResult result =
-                _hierarchyValidator.ValidateScope(document, scopeName);
+            TransferMatchStatus status;
 
-            if (!result.IsValid)
-                throw new InvalidOperationException(result.ToDisplayMessage());
+            switch (match.Status)
+            {
+                case MatchResolutionStatus.Matched:
+                    status =
+                        TransferMatchStatus.Matched;
+                    break;
+
+                case MatchResolutionStatus.Ambiguous:
+                    status =
+                        TransferMatchStatus.Ambiguous;
+                    break;
+
+                case MatchResolutionStatus.MissingKey:
+                    status =
+                        TransferMatchStatus.MissingKey;
+                    break;
+
+                default:
+                    status =
+                        TransferMatchStatus.Unmatched;
+                    break;
+            }
+
+            TransferTargetFingerprint fingerprint =
+                null;
+
+            if (match.Item != null)
+            {
+                fingerprint =
+                    new TransferTargetFingerprint(
+                        match.Item.InstanceGuid
+                            .ToString("D"),
+                        ReadProperty(
+                            match.Item,
+                            "Item",
+                            "GUID"),
+                        ReadSourceFile(
+                            match.Item),
+                        match.Item.DisplayName);
+            }
+
+            return new TransferMatchResult(
+                status,
+                match.StrategyName,
+                match.Key,
+                match.Reason,
+                fingerprint);
         }
 
+        private static string ReadProperty(
+            ModelItem item,
+            string categoryName,
+            string propertyName)
+        {
+            var category =
+                item.PropertyCategories
+                    .FindCategoryByDisplayName(
+                        categoryName);
+
+            var property =
+                category?
+                    .Properties
+                    .FindPropertyByDisplayName(
+                        propertyName);
+
+            return property?
+                .Value?
+                .ToDisplayString()
+                ?? string.Empty;
+        }
+
+        private static string ReadSourceFile(
+            ModelItem item)
+        {
+            string value =
+                ReadProperty(
+                    item,
+                    "Item",
+                    "Source File Name");
+
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+
+            return ReadProperty(
+                item,
+                "Item",
+                "Source File");
+        }
+
+        private sealed class OutcomeBuilder
+        {
+            private readonly
+                ExternalModelItemSnapshot _snapshot;
+
+            public OutcomeBuilder(
+                int index,
+                ExternalModelItemSnapshot snapshot)
+            {
+                Index = index;
+                _snapshot = snapshot;
+                Operations =
+                    new List<
+                        TransferOperationResult>();
+            }
+
+            public int Index { get; private set; }
+
+            public TransferMatchResult Match
+            {
+                get;
+                set;
+            }
+
+            public List<TransferOperationResult>
+                Operations
+            {
+                get;
+                private set;
+            }
+
+            public TransferOutcome CreateOutcome()
+            {
+                List<TransferPayloadValue> payload =
+                    (_snapshot?.Properties ??
+                        new List<
+                            ExternalPropertySnapshot>())
+                    .Where(
+                        property =>
+                            property != null)
+                    .Select(
+                        property =>
+                            new TransferPayloadValue(
+                                (property.Category ??
+                                    string.Empty) +
+                                "." +
+                                (property.Name ??
+                                    string.Empty),
+                                property.Value))
+                    .ToList();
+
+                string itemGuid =
+                    GetSnapshotProperty(
+                        "Item",
+                        "GUID");
+
+                string sourceFile =
+                    GetSnapshotProperty(
+                        "Item",
+                        "Source File Name");
+
+                if (string.IsNullOrWhiteSpace(
+                    sourceFile))
+                {
+                    sourceFile =
+                        GetSnapshotProperty(
+                            "Item",
+                            "Source File");
+                }
+
+                var sourceIdentity =
+                    new TransferSourceIdentity(
+                        Index,
+                        _snapshot?.InstanceGuid,
+                        itemGuid,
+                        sourceFile,
+                        _snapshot?.DisplayName);
+
+                TransferMatchResult finalMatch =
+                    Match ??
+                    new TransferMatchResult(
+                        TransferMatchStatus
+                            .MissingKey,
+                        string.Empty,
+                        string.Empty,
+                        "No executable SOURCE row was produced.",
+                        null);
+
+                return new TransferOutcome(
+                    sourceIdentity,
+                    payload,
+                    finalMatch,
+                    Operations);
+            }
+
+            private string GetSnapshotProperty(
+                string categoryName,
+                string propertyName)
+            {
+                ExternalPropertySnapshot property =
+                    _snapshot?
+                        .Properties?
+                        .FirstOrDefault(
+                            value =>
+                                value != null &&
+                                string.Equals(
+                                    value.Category,
+                                    categoryName,
+                                    StringComparison
+                                        .OrdinalIgnoreCase) &&
+                                string.Equals(
+                                    value.Name,
+                                    propertyName,
+                                    StringComparison
+                                        .OrdinalIgnoreCase));
+
+                return property?.Value
+                    ?? string.Empty;
+            }
+        }
+
+        private sealed class PendingWrite
+        {
+            public PendingWrite(
+                string tab,
+                string property,
+                string value)
+            {
+                Tab = tab;
+                Property = property;
+                Value = value;
+
+                Builders =
+                    new List<OutcomeBuilder>();
+            }
+
+            public string Tab
+            {
+                get;
+                private set;
+            }
+
+            public string Property
+            {
+                get;
+                private set;
+            }
+
+            public string Value
+            {
+                get;
+                private set;
+            }
+
+            public List<OutcomeBuilder> Builders
+            {
+                get;
+                private set;
+            }
+
+            public void AddResult(
+                TransferOperationStatus status,
+                string reason,
+                string error)
+            {
+                foreach (OutcomeBuilder builder
+                    in Builders)
+                {
+                    builder.Operations.Add(
+                        new TransferOperationResult(
+                            status,
+                            "PropertyWrite",
+                            Tab,
+                            Property,
+                            Value,
+                            reason,
+                            error));
+                }
+            }
+        }
     }
 }

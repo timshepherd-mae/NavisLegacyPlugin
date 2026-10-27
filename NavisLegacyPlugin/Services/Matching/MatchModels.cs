@@ -39,14 +39,15 @@ namespace NavisLegacyPlugin.Services.Matching
 
     public sealed class MatchResolution
     {
-        public MatchResolution(MatchResolutionStatus status, ModelItem item, string strategyName, string key)
+        public MatchResolution(MatchResolutionStatus status, ModelItem item, string strategyName, string key, string reason = null)
         {
-            Status = status; Item = item; StrategyName = strategyName; Key = key;
+            Status = status; Item = item; StrategyName = strategyName; Key = key; Reason = reason ?? string.Empty;
         }
         public MatchResolutionStatus Status { get; private set; }
         public ModelItem Item { get; private set; }
         public string StrategyName { get; private set; }
         public string Key { get; private set; }
+        public string Reason { get; private set; }
     }
 
     public sealed class OrderedMatchDiagnostics

@@ -77,7 +77,8 @@ namespace NavisLegacyPlugin.Services.Matching
                     MatchResolutionStatus.Matched,
                     matches[0],
                     index.Definition.Name,
-                    key);
+                    key,
+                    "Matched by " + index.Definition.Name + ".");
             }
 
             if (!hadKey)
@@ -87,7 +88,8 @@ namespace NavisLegacyPlugin.Services.Matching
                     MatchResolutionStatus.MissingKey,
                     null,
                     null,
-                    null);
+                    null,
+                    "No enabled matching strategy had a complete SOURCE key.");
             }
 
             if (hadMultipleMatches)
@@ -97,7 +99,8 @@ namespace NavisLegacyPlugin.Services.Matching
                     MatchResolutionStatus.Ambiguous,
                     null,
                     lastAmbiguousStrategy,
-                    lastAmbiguousKey);
+                    lastAmbiguousKey,
+                    "More than one TARGET item matched the final usable key.");
             }
 
             _diagnostics.Unmatched++;
@@ -105,7 +108,8 @@ namespace NavisLegacyPlugin.Services.Matching
                 MatchResolutionStatus.Unmatched,
                 null,
                 null,
-                null);
+                null,
+                "No TARGET item matched the available SOURCE keys.");
         }
 
         private static bool IsGuidOnlyStrategy(string strategyName)

@@ -50,6 +50,7 @@ namespace NavisLegacyPlugin.Services.ExternalSources
 
             var table = new DataTable();
             table.CaseSensitive = false;
+            table.Columns.Add("__SourceRowIndex", typeof(int));
             table.Columns.Add("InstanceGuid", typeof(string));
 
             foreach (ExternalModelItemSnapshot item in population.Items)
@@ -65,12 +66,14 @@ namespace NavisLegacyPlugin.Services.ExternalSources
                 }
             }
 
-            foreach (ExternalModelItemSnapshot item in population.Items)
+            for (int sourceRowIndex = 0; sourceRowIndex < population.Items.Count; sourceRowIndex++)
             {
+                ExternalModelItemSnapshot item = population.Items[sourceRowIndex];
                 if (item == null)
                     continue;
 
                 DataRow row = table.NewRow();
+                row["__SourceRowIndex"] = sourceRowIndex;
                 row["InstanceGuid"] = item.InstanceGuid ?? string.Empty;
 
                 if (item.Properties != null)
