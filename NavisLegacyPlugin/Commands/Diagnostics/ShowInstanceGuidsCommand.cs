@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -58,64 +58,6 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
                                 item,
                                 index + 1))
                     .ToList();
-
-            Dictionary<Guid, int> instanceGuidCounts =
-                rows
-                    .GroupBy(row => row.InstanceGuidValue)
-                    .ToDictionary(
-                        group => group.Key,
-                        group => group.Count());
-
-            Dictionary<string, int> ifcGuidCounts =
-                rows
-                    .Where(
-                        row =>
-                            !string.IsNullOrWhiteSpace(
-                                row.IfcGuid))
-                    .GroupBy(
-                        row => row.IfcGuid.Trim(),
-                        StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(
-                        group => group.Key,
-                        group => group.Count(),
-                        StringComparer.OrdinalIgnoreCase);
-
-            foreach (DiagnosticRow row in rows)
-            {
-                int instanceGuidCount;
-
-                if (instanceGuidCounts.TryGetValue(
-                    row.InstanceGuidValue,
-                    out instanceGuidCount))
-                {
-                    row.InstanceGuidCount =
-                        instanceGuidCount;
-
-                    row.DuplicateInstanceGuid =
-                        instanceGuidCount > 1
-                            ? "YES"
-                            : string.Empty;
-                }
-
-                if (!string.IsNullOrWhiteSpace(
-                    row.IfcGuid))
-                {
-                    int ifcGuidCount;
-
-                    if (ifcGuidCounts.TryGetValue(
-                        row.IfcGuid.Trim(),
-                        out ifcGuidCount))
-                    {
-                        row.IfcGuidCount =
-                            ifcGuidCount;
-
-                        row.DuplicateIfcGuid =
-                            ifcGuidCount > 1
-                                ? "YES"
-                                : string.Empty;
-                    }
-                }
-            }
 
             if (_openForm != null &&
                 !_openForm.IsDisposed)
@@ -423,6 +365,8 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
             private readonly DataGridView _grid;
             private readonly Label _summary;
             private readonly Button _selectRowsButton;
+            private readonly CheckBox _caseSensitiveMatchingCheckBox;
+            private readonly CheckBox _caseSensitiveSortingCheckBox;
 
             public InstanceGuidDiagnosticForm(
                 List<DiagnosticRow> rows)
@@ -448,7 +392,7 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
                     Dock = DockStyle.Top,
                     Height = 42,
                     Padding = new Padding(8),
-                    Text = BuildSummary(_rows)
+                    Text = string.Empty
                 };
 
                 _grid = new DataGridView
@@ -496,6 +440,29 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
                 _selectRowsButton.Click +=
                     SelectRowsButton_Click;
 
+                _caseSensitiveMatchingCheckBox = new CheckBox
+                {
+                    Text = "matching",
+                    AutoSize = true,
+                    Checked = false,
+                    Margin = new Padding(4, 7, 10, 0)
+                };
+
+                _caseSensitiveMatchingCheckBox.CheckedChanged +=
+                    CaseSensitiveMatchingCheckBox_CheckedChanged;
+
+                _caseSensitiveSortingCheckBox = new CheckBox
+                {
+                    Text = "sorting",
+                    AutoSize = true,
+                    Checked = false,
+                    Margin = new Padding(4, 7, 10, 0)
+                };
+
+                _caseSensitiveSortingCheckBox.CheckedChanged +=
+                    CaseSensitiveSortingCheckBox_CheckedChanged;
+
+                RecalculateDuplicateMatches();
                 RebuildGridRows();
 
                 var closeButton = new Button
@@ -508,22 +475,53 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
                 closeButton.Click +=
                     (sender, args) => Close();
 
-                var buttons = new FlowLayoutPanel
+                var caseSensitiveLabel = new Label
+                {
+                    Text = "Case Sensitive?",
+                    AutoSize = true,
+                    Margin = new Padding(0, 8, 2, 0)
+                };
+
+                var optionsPanel = new FlowLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    FlowDirection = FlowDirection.LeftToRight,
+                    WrapContents = false
+                };
+
+                optionsPanel.Controls.Add(caseSensitiveLabel);
+                optionsPanel.Controls.Add(_caseSensitiveMatchingCheckBox);
+                optionsPanel.Controls.Add(_caseSensitiveSortingCheckBox);
+
+                var actionPanel = new FlowLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    FlowDirection = FlowDirection.RightToLeft,
+                    WrapContents = false
+                };
+
+                actionPanel.Controls.Add(closeButton);
+                actionPanel.Controls.Add(copyAllButton);
+                actionPanel.Controls.Add(_selectRowsButton);
+
+                var bottomPanel = new TableLayoutPanel
                 {
                     Dock = DockStyle.Bottom,
                     Height = 48,
-                    FlowDirection =
-                        FlowDirection.RightToLeft,
+                    ColumnCount = 2,
                     Padding = new Padding(8)
                 };
 
-                buttons.Controls.Add(closeButton);
-                buttons.Controls.Add(copyAllButton);
-                buttons.Controls.Add(_selectRowsButton);
+                bottomPanel.ColumnStyles.Add(
+                    new ColumnStyle(SizeType.Percent, 40F));
+                bottomPanel.ColumnStyles.Add(
+                    new ColumnStyle(SizeType.Percent, 60F));
+                bottomPanel.Controls.Add(optionsPanel, 0, 0);
+                bottomPanel.Controls.Add(actionPanel, 1, 0);
 
                 Controls.Add(_grid);
                 Controls.Add(_summary);
-                Controls.Add(buttons);
+                Controls.Add(bottomPanel);
             }
 
             private void AddColumns()
@@ -589,6 +587,85 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
                             DataGridViewColumnSortMode
                                 .Programmatic
                     });
+            }
+
+            private bool CaseSensitiveMatching
+            {
+                get
+                {
+                    return _caseSensitiveMatchingCheckBox.Checked;
+                }
+            }
+
+            private bool CaseSensitiveSorting
+            {
+                get
+                {
+                    return _caseSensitiveSortingCheckBox.Checked;
+                }
+            }
+
+            private void CaseSensitiveMatchingCheckBox_CheckedChanged(
+                object sender,
+                EventArgs e)
+            {
+                RecalculateDuplicateMatches();
+                ApplySort();
+                UpdateColumnHeaders();
+            }
+
+            private void CaseSensitiveSortingCheckBox_CheckedChanged(
+                object sender,
+                EventArgs e)
+            {
+                ApplySort();
+                UpdateColumnHeaders();
+            }
+
+            private void RecalculateDuplicateMatches()
+            {
+                Dictionary<Guid, int> instanceGuidCounts =
+                    _rows
+                        .GroupBy(row => row.InstanceGuidValue)
+                        .ToDictionary(
+                            group => group.Key,
+                            group => group.Count());
+
+                StringComparer ifcGuidComparer =
+                    CaseSensitiveMatching
+                        ? StringComparer.Ordinal
+                        : StringComparer.OrdinalIgnoreCase;
+
+                Dictionary<string, int> ifcGuidCounts =
+                    _rows
+                        .Where(row => !string.IsNullOrWhiteSpace(row.IfcGuid))
+                        .GroupBy(row => row.IfcGuid.Trim(), ifcGuidComparer)
+                        .ToDictionary(
+                            group => group.Key,
+                            group => group.Count(),
+                            ifcGuidComparer);
+
+                foreach (DiagnosticRow row in _rows)
+                {
+                    int count;
+                    row.InstanceGuidCount =
+                        instanceGuidCounts.TryGetValue(row.InstanceGuidValue, out count)
+                            ? count
+                            : 0;
+                    row.DuplicateInstanceGuid =
+                        row.InstanceGuidCount > 1 ? "YES" : string.Empty;
+
+                    row.IfcGuidCount = 0;
+                    row.DuplicateIfcGuid = string.Empty;
+                    if (!string.IsNullOrWhiteSpace(row.IfcGuid) &&
+                        ifcGuidCounts.TryGetValue(row.IfcGuid.Trim(), out count))
+                    {
+                        row.IfcGuidCount = count;
+                        row.DuplicateIfcGuid = count > 1 ? "YES" : string.Empty;
+                    }
+                }
+
+                _summary.Text = BuildSummary(_rows, CaseSensitiveMatching);
             }
 
             private void Grid_SelectionChanged(
@@ -659,7 +736,7 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
                         modelItems);
 
                     _summary.Text =
-                        BuildSummary(_rows) +
+                        BuildSummary(_rows, CaseSensitiveMatching) +
                         "    |    Current selection updated: " +
                         modelItems.Count;
                 }
@@ -775,7 +852,8 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
 
                     sortedRows.Sort(
                         new DiagnosticRowComparer(
-                            _sortCriteria));
+                            _sortCriteria,
+                            CaseSensitiveSorting));
 
                     _displayRows.AddRange(
                         sortedRows);
@@ -1008,7 +1086,8 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
             }
 
             private static string BuildSummary(
-                List<DiagnosticRow> rows)
+                List<DiagnosticRow> rows,
+                bool caseSensitiveMatching)
             {
                 int duplicateInstanceGuidGroups =
                     rows
@@ -1034,7 +1113,9 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
                             .GroupBy(
                                 row =>
                                     row.IfcGuid.Trim(),
-                                StringComparer.OrdinalIgnoreCase)
+                                caseSensitiveMatching
+                                    ? StringComparer.Ordinal
+                                    : StringComparer.OrdinalIgnoreCase)
                             .Where(
                                 group =>
                                     group.Count() > 1)
@@ -1172,14 +1253,19 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
             {
                 private readonly List<SortCriterion>
                     _criteria;
+                private readonly DiagnosticValueComparer
+                    _valueComparer;
 
                 public DiagnosticRowComparer(
-                    IEnumerable<SortCriterion> criteria)
+                    IEnumerable<SortCriterion> criteria,
+                    bool caseSensitiveSorting)
                 {
                     _criteria =
                         criteria == null
                             ? new List<SortCriterion>()
                             : criteria.ToList();
+                    _valueComparer =
+                        new DiagnosticValueComparer(caseSensitiveSorting);
                 }
 
                 public int Compare(
@@ -1213,8 +1299,7 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
                                     criterion.ColumnName);
 
                         int result =
-                            DiagnosticValueComparer
-                                .Instance
+                            _valueComparer
                                 .Compare(
                                     selector(first),
                                     selector(second));
@@ -1239,12 +1324,13 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
             private sealed class DiagnosticValueComparer
                 : IComparer<object>
             {
-                public static readonly
-                    DiagnosticValueComparer Instance =
-                        new DiagnosticValueComparer();
+                private readonly StringComparer _stringComparer;
 
-                private DiagnosticValueComparer()
+                public DiagnosticValueComparer(bool caseSensitive)
                 {
+                    _stringComparer = caseSensitive
+                        ? StringComparer.Ordinal
+                        : StringComparer.OrdinalIgnoreCase;
                 }
 
                 public int Compare(
@@ -1282,9 +1368,7 @@ namespace NavisLegacyPlugin.Commands.Diagnostics
                         string.Empty;
 
                     return
-                        StringComparer
-                            .OrdinalIgnoreCase
-                            .Compare(
+                        _stringComparer.Compare(
                                 first,
                                 second);
                 }
