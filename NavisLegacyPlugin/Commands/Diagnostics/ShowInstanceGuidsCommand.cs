@@ -6,6 +6,12 @@ using System.Windows.Forms;
 using Autodesk.Navisworks.Api;
 using Autodesk.Navisworks.Api.Plugins;
 
+
+// data vuewer specifically for ID diagnostics
+// shows the instance guids for the current selection
+// and allows the user to sort and filter the results
+// and copy the results to the clipboard
+
 namespace NavisLegacyPlugin.Commands.Diagnostics
 {
     [Plugin(
