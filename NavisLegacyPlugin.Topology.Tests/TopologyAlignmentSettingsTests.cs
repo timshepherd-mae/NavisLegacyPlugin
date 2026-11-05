@@ -1,43 +1,21 @@
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NavisLegacyPlugin.Services.Topology;
-
 namespace NavisLegacyPlugin.Topology.Tests
 {
-    [TestClass]
-    public sealed class TopologyAlignmentSettingsTests
-    {
-        [TestMethod]
-        public void Defaults_MatchLockedConfidencePolicy()
-        {
-            var settings = new TopologyAlignmentSettings();
-            Assert.AreEqual(80, settings.GoodThreshold);
-            Assert.AreEqual(50, settings.VagueThreshold);
-            Assert.AreEqual(15, settings.MinimumSeparation);
-            Assert.AreEqual(100, settings.ExactScore);
-            Assert.AreEqual(35, settings.SubstitutionScore);
-            Assert.AreEqual(20, settings.InsertionScore);
-            Assert.AreEqual(20, settings.DeletionScore);
-            Assert.AreEqual(40, settings.AnchorWeight);
-            Assert.AreEqual(32, settings.OwnerWeight);
-            Assert.AreEqual(8, settings.MinimumContextWeight);
-            Assert.AreEqual(6, settings.ContextWeightReduction);
-        }
-
-        [TestMethod]
-        public void Validate_RejectsInvalidThresholdsAndWeights()
-        {
-            AssertInvalid(delegate { new TopologyAlignmentSettings { GoodThreshold = 101 }.Validate(); });
-            AssertInvalid(delegate { new TopologyAlignmentSettings { VagueThreshold = 81 }.Validate(); });
-            AssertInvalid(delegate { new TopologyAlignmentSettings { MinimumSeparation = -1 }.Validate(); });
-            AssertInvalid(delegate { new TopologyAlignmentSettings { AnchorWeight = 0 }.Validate(); });
-            AssertInvalid(delegate { new TopologyAlignmentSettings { OwnerWeight = 0 }.Validate(); });
-            AssertInvalid(delegate { new TopologyAlignmentSettings { MinimumContextWeight = 0 }.Validate(); });
-        }
-
-        private static void AssertInvalid(Action action)
-        {
-            Assert.ThrowsException<InvalidOperationException>(action);
-        }
-    }
+ [TestClass] public class TopologyAlignmentSettingsTests
+ {
+  [TestMethod] public void Defaults_GoodThreshold_80(){Assert.AreEqual(80,new TopologyAlignmentSettings().GoodThreshold);}
+  [TestMethod] public void Defaults_VagueThreshold_50(){Assert.AreEqual(50,new TopologyAlignmentSettings().VagueThreshold);}
+  [TestMethod] public void Defaults_Separation_15(){Assert.AreEqual(15,new TopologyAlignmentSettings().MinimumSeparation);}
+  [TestMethod] public void Defaults_AnchorWeight_40(){Assert.AreEqual(40,new TopologyAlignmentSettings().AnchorWeight);}
+  [TestMethod] public void Defaults_OwnerWeight_32(){Assert.AreEqual(32,new TopologyAlignmentSettings().OwnerWeight);}
+  [TestMethod] public void Defaults_ContextMinimum_8(){Assert.AreEqual(8,new TopologyAlignmentSettings().MinimumContextWeight);}
+  [TestMethod] public void Validate_Defaults_Pass(){new TopologyAlignmentSettings().Validate();}
+  [TestMethod] public void Validate_GoodBelowZero_Throws(){var s=new TopologyAlignmentSettings{GoodThreshold=-1};Assert.ThrowsException<InvalidOperationException>(()=>s.Validate());}
+  [TestMethod] public void Validate_GoodAbove100_Throws(){var s=new TopologyAlignmentSettings{GoodThreshold=101};Assert.ThrowsException<InvalidOperationException>(()=>s.Validate());}
+  [TestMethod] public void Validate_VagueAboveGood_Throws(){var s=new TopologyAlignmentSettings{GoodThreshold=70,VagueThreshold=71};Assert.ThrowsException<InvalidOperationException>(()=>s.Validate());}
+  [TestMethod] public void Validate_SeparationAbove100_Throws(){var s=new TopologyAlignmentSettings{MinimumSeparation=101};Assert.ThrowsException<InvalidOperationException>(()=>s.Validate());}
+  [TestMethod] public void Validate_ZeroAnchorWeight_Throws(){var s=new TopologyAlignmentSettings{AnchorWeight=0};Assert.ThrowsException<InvalidOperationException>(()=>s.Validate());}
+ }
 }

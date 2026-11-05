@@ -3,15 +3,20 @@
     <TargetFramework>net48</TargetFramework>
     <LangVersion>7.3</LangVersion>
     <PlatformTarget>x64</PlatformTarget>
+    <IsTestProject>true</IsTestProject>
     <IsPackable>false</IsPackable>
-    <AssemblyName>NavisLegacyPlugin.Topology.Tests</AssemblyName>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <RootNamespace>NavisLegacyPlugin.Topology.Tests</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
     <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\NavisLegacyPlugin\NavisLegacyPlugin.csproj" />
+    <Compile Include="..\NavisLegacyPlugin\Models\Topology\TopologyModels.cs" Link="Production\TopologyModels.cs" />
+    <Compile Include="..\NavisLegacyPlugin\Services\Topology\TopologyAlignmentSettings.cs" Link="Production\TopologyAlignmentSettings.cs" />
+    <Compile Include="..\NavisLegacyPlugin\Services\Topology\OrderedTopologyAligner.cs" Link="Production\OrderedTopologyAligner.cs" />
+    <Compile Include="..\NavisLegacyPlugin\Services\Topology\TopologyConfidenceClassifier.cs" Link="Production\TopologyConfidenceClassifier.cs" />
   </ItemGroup>
 </Project>

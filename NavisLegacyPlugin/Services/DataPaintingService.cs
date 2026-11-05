@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
@@ -8,6 +8,7 @@ using Autodesk.Navisworks.Api;
 using NavisLegacyPlugin.Helpers;
 using NavisLegacyPlugin.Models;
 using NavisLegacyPlugin.Models.ExternalSources;
+using NavisLegacyPlugin.Models.Matching;
 using NavisLegacyPlugin.Services.ExternalSources;
 using NavisLegacyPlugin.Services.DataSources;
 using NavisLegacyPlugin.Services.Execution;
@@ -113,7 +114,9 @@ namespace NavisLegacyPlugin.Services
             IEnumerable<ModelItem> targetItems,
             WriteConfig writeConfig,
             ProgressConfig progress,
-            ExecutionSelectionSets selectionSets)
+            ExecutionSelectionSets selectionSets,
+            MatchingStrategyMode matchingStrategy,
+            AnchorMethod anchorMethod)
         {
             Stopwatch phase72Timing = Stopwatch.StartNew();
             LogPhase72Timing("External execution service entered", phase72Timing);
@@ -134,11 +137,27 @@ namespace NavisLegacyPlugin.Services
                 progress,
                 selectionSets);
 
-            var strategies = new[]
+            MatchStrategyDefinition selectedStrategy;
+            switch (anchorMethod)
             {
-                MatchStrategyFactory.ItemGuid(0),
-                MatchStrategyFactory.ItemGuidAndSourceFile(1)
-            };
+                case AnchorMethod.ItemGuid:
+                    selectedStrategy = MatchStrategyFactory.ItemGuid(0);
+                    break;
+                case AnchorMethod.IfcGuid:
+                    selectedStrategy = MatchStrategyFactory.IfcGuid(0);
+                    break;
+                case AnchorMethod.IfcGuidAndDisplayName:
+                    selectedStrategy = MatchStrategyFactory.IfcGuidAndDisplayName(0);
+                    break;
+                default:
+                    selectedStrategy = MatchStrategyFactory.ItemGuidAndSourceFile(0);
+                    break;
+            }
+
+            var strategies = new[] { selectedStrategy };
+            progress.ProgressText?.Report(matchingStrategy == MatchingStrategyMode.Topology
+                ? "Preparing selected topology anchor index..."
+                : "Preparing selected direct match index...");
 
             // Phase 6.5A2: the ordered path must index the complete TARGET
             // population. The legacy GUID lookup remains on ExecuteSignature for

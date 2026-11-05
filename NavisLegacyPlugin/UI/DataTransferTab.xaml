@@ -62,7 +62,17 @@
 
             <GroupBox Header="3. MATCHING" Margin="0,0,0,8">
                 <StackPanel Margin="8">
-                    <CheckBox Content="Expect Duplicate GUIDs" IsChecked="{Binding ExpectDuplicateGuids, Mode=TwoWay}" FontWeight="Bold"/>
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="260"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                        <TextBlock Text="Matching Strategy" VerticalAlignment="Center" FontWeight="Bold"/>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding MatchingStrategyOptions}" SelectedItem="{Binding MatchingStrategy, Mode=TwoWay}" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
+                    </Grid>
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="260"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                        <TextBlock Text="Anchor Method" VerticalAlignment="Center" FontWeight="Bold"/>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding AnchorMethodOptions}" SelectedItem="{Binding AnchorMethod, Mode=TwoWay}" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
+                    </Grid>
+                    <TextBlock Text="{Binding MatchingStrategyExplanation}" Margin="0,5,0,0" Foreground="DimGray" TextWrapping="Wrap"/>
                     <TextBlock Text="When enabled, GUID-only matches are not accepted until verified by a later file-aware strategy."
                                TextWrapping="Wrap" Margin="20,4,0,0"/>
                 </StackPanel>
@@ -146,3 +156,5 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+
+

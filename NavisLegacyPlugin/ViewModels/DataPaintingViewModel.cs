@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Data;
@@ -17,6 +17,7 @@ using NavisLegacyPlugin.Models;
 using NavisLegacyPlugin.Models.Collections;
 using NavisLegacyPlugin.Models.ExternalSources;
 using NavisLegacyPlugin.Models.Execution;
+using NavisLegacyPlugin.Models.Matching;
 using NavisLegacyPlugin.Services.Lookups;
 using NavisLegacyPlugin.Services.DataSources;
 using NavisLegacyPlugin.Services.Execution;
@@ -52,6 +53,24 @@ namespace NavisLegacyPlugin.ViewModels
                 OnPropertyChanged();
             }
         }
+
+        private MatchingStrategyMode _matchingStrategy = MatchingStrategyMode.Direct;
+        public MatchingStrategyMode MatchingStrategy
+        {
+            get { return _matchingStrategy; }
+            set { if (_matchingStrategy == value) return; _matchingStrategy = value; OnPropertyChanged(); OnPropertyChanged(nameof(MatchingStrategyExplanation)); InvalidateExternalTransfer(); }
+        }
+
+        private AnchorMethod _anchorMethod = AnchorMethod.ItemGuidAndFilename;
+        public AnchorMethod AnchorMethod
+        {
+            get { return _anchorMethod; }
+            set { if (_anchorMethod == value) return; _anchorMethod = value; OnPropertyChanged(); InvalidateExternalTransfer(); }
+        }
+
+        public IEnumerable<MatchingStrategyMode> MatchingStrategyOptions { get { return Enum.GetValues(typeof(MatchingStrategyMode)).Cast<MatchingStrategyMode>(); } }
+        public IEnumerable<AnchorMethod> AnchorMethodOptions { get { return Enum.GetValues(typeof(AnchorMethod)).Cast<AnchorMethod>(); } }
+        public string MatchingStrategyExplanation { get { return MatchingStrategy == MatchingStrategyMode.Direct ? "Direct identifies the final TARGET item." : "Topology uses the selected anchor to resolve the equivalent hierarchy position."; } }
 
         private string _externalSourceFilePath = string.Empty;
         public string ExternalSourceFilePath
@@ -228,7 +247,8 @@ private void InvalidateExternalTransfer()
             TargetResolutionType = null;
             ExportResolutionType = null;
             Overwrite = false;
-            ExpectDuplicateGuids = false;
+            MatchingStrategy = MatchingStrategyMode.Direct;
+            AnchorMethod = AnchorMethod.ItemGuidAndFilename;
             ProgressPercent = 0;
             ProgressText = string.Empty;
             LastMatched = 0;
@@ -599,6 +619,9 @@ private void InvalidateExternalTransfer()
                 return;
             }
 
+            MatchingStrategyMode selectedMatchingStrategy = MatchingStrategy;
+            AnchorMethod selectedAnchorMethod = AnchorMethod;
+
             try
             {
                 IsBusy = true;
@@ -691,7 +714,9 @@ private void InvalidateExternalTransfer()
                     targetItems,
                     writeConfig,
                     progressConfig,
-                    selectionSets);
+                    selectionSets,
+                    selectedMatchingStrategy,
+                    selectedAnchorMethod);
 
                 LastOutcomeSet = result.Outcomes;
 
