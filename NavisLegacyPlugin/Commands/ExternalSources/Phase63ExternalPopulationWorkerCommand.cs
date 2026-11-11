@@ -78,6 +78,7 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                             DisplayName = item.DisplayName,
                             HasChildren = item.Children.Any()
                         };
+                        snapshot.AncestorPath.AddRange(BuildAncestorPath(item));
 
                         foreach (PropertyCategory category in item.PropertyCategories)
                         {
@@ -262,6 +263,46 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             return sets[0];
         }
 
+
+        private static List<ExternalTopologyPathNodeSnapshot> BuildAncestorPath(ModelItem item)
+        {
+            var result = new List<ExternalTopologyPathNodeSnapshot>();
+            ModelItem current = item;
+            int depth = 0;
+            while (current != null)
+            {
+                result.Add(new ExternalTopologyPathNodeSnapshot
+                {
+                    DepthFromItem = depth,
+                    InstanceGuid = current.InstanceGuid.ToString("D"),
+                    DisplayName = current.DisplayName,
+                    ItemGuid = ReadProperty(current, "Item", "GUID"),
+                    SourceFile = ReadSourceFile(current)
+                });
+                current = current.Parent;
+                depth++;
+            }
+            return result;
+        }
+        private static string ReadSourceFile(ModelItem item)
+        {
+            string value = ReadProperty(item, "Item", "Source File Name");
+            return string.IsNullOrWhiteSpace(value) ? ReadProperty(item, "Item", "Source File") : value;
+        }
+        private static string ReadProperty(ModelItem item,string categoryName,string propertyName)
+        {
+            if(item==null||item.PropertyCategories==null)return string.Empty;
+            foreach(PropertyCategory category in item.PropertyCategories)
+            {
+                if(category==null||!string.Equals(category.DisplayName,categoryName,StringComparison.OrdinalIgnoreCase))continue;
+                foreach(DataProperty property in category.Properties)
+                {
+                    if(property==null||!string.Equals(property.DisplayName,propertyName,StringComparison.OrdinalIgnoreCase))continue;
+                    try{return property.Value==null?string.Empty:property.Value.ToDisplayString();}catch{return string.Empty;}
+                }
+            }
+            return string.Empty;
+        }
         private static string SerializeVariantData(VariantData value)
         {
             if (value == null)

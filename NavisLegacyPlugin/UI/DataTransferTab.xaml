@@ -149,6 +149,18 @@
                                 <StackPanel Grid.Column="1"><TextBlock Text="Skipped" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastSkipped}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
                                 <StackPanel Grid.Column="2"><TextBlock Text="Failed" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastFailed}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
                             </Grid></GroupBox>
+                            <GroupBox Header="Topology resolution" Margin="0,10,0,0"><Grid Margin="8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0"><TextBlock Text="Applicable" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastTopologyApplicable}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
+                                <StackPanel Grid.Column="1"><TextBlock Text="Good" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastTopologyGood}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Vague" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastTopologyVague}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
+                                <StackPanel Grid.Column="3"><TextBlock Text="Ambiguous" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastTopologyAmbiguous}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Text="Unresolved" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastTopologyUnresolved}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
+                                <StackPanel Grid.Column="5"><TextBlock Text="Conflict" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="{Binding LastTopologyConflict}" FontSize="18" HorizontalAlignment="Center"/></StackPanel>
+                            </Grid></GroupBox>
+                            <GroupBox Header="Topology outcomes" Margin="0,10,0,0"><StackPanel Margin="8"><StackPanel Orientation="Horizontal" Margin="0,0,0,8"><TextBlock Text="Filter" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/><ComboBox Width="150" ItemsSource="{Binding TopologyReviewFilterOptions}" SelectedItem="{Binding TopologyReviewFilter}"/><Button Content="Copy Visible Rows" Width="130" Margin="10,0,0,0" Command="{Binding CopyTopologyReviewCommand}"/><Button Content="Select TARGET" Width="110" Margin="6,0,0,0" Command="{Binding SelectTopologyTargetCommand}"/></StackPanel>
+                                <DataGrid ItemsSource="{Binding TopologyReviewRows}" SelectedItem="{Binding SelectedTopologyReviewRow}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MinHeight="200" MaxHeight="420" HorizontalScrollBarVisibility="Auto"><DataGrid.Columns>
+                                    <DataGridTextColumn Header="SOURCE row" Binding="{Binding SourceRowIndex}"/><DataGridTextColumn Header="SOURCE owner" Binding="{Binding SourceOwner}" Width="150"/><DataGridTextColumn Header="RID" Binding="{Binding RidValue}" Width="110"/><DataGridTextColumn Header="Strategy" Binding="{Binding MatchingStrategy}"/><DataGridTextColumn Header="Anchor" Binding="{Binding AnchorMethod}" Width="140"/><DataGridTextColumn Header="Anchor status" Binding="{Binding AnchorStatus}"/><DataGridTextColumn Header="Anchor key" Binding="{Binding AnchorKey}" Width="160"/><DataGridTextColumn Header="Classification" Binding="{Binding Status}"/><DataGridCheckBoxColumn Header="Conflict" Binding="{Binding Conflict}"/><DataGridTextColumn Header="Best" Binding="{Binding BestScore}"/><DataGridTextColumn Header="Next" Binding="{Binding NextBestScore}"/><DataGridTextColumn Header="Separation" Binding="{Binding Separation}"/><DataGridTextColumn Header="TARGET owner" Binding="{Binding TargetOwner}" Width="150"/><DataGridTextColumn Header="Operation" Binding="{Binding OperationStatus}"/><DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="260"/>
+                                </DataGrid.Columns></DataGrid></StackPanel></GroupBox>
                         </StackPanel>
                     </GroupBox>
                 </StackPanel>
@@ -156,5 +168,3 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
-
-

@@ -18,14 +18,12 @@ namespace NavisLegacyPlugin.Services.Matching
 
         private readonly List<StrategyIndex> _indexes;
         private readonly OrderedMatchDiagnostics _diagnostics = new OrderedMatchDiagnostics();
-        private readonly bool _expectDuplicateGuids;
         private readonly HashSet<ModelItem> _targetPopulation;
 
         public OrderedRowMatchResolver(IEnumerable<ModelItem> targetItems, IEnumerable<MatchStrategyDefinition> strategies)
         {
             if (targetItems == null) throw new ArgumentNullException("targetItems");
             if (strategies == null) throw new ArgumentNullException("strategies");
-            _expectDuplicateGuids = DuplicateGuidMatchOptions.ExpectDuplicateGuids;
             List<ModelItem> targets = targetItems
                 .Where(i => i != null)
                 .Distinct(ModelItemReferenceComparer.Instance)
@@ -68,10 +66,6 @@ namespace NavisLegacyPlugin.Services.Matching
                     continue;
                 }
 
-                if (_expectDuplicateGuids && IsGuidOnlyStrategy(index.Definition.Name))
-                {
-                    continue;
-                }
 
                 if (matches.Count > 1)
                 {
@@ -121,11 +115,6 @@ namespace NavisLegacyPlugin.Services.Matching
                 "No TARGET item matched the available SOURCE keys.");
         }
 
-        private static bool IsGuidOnlyStrategy(string strategyName)
-        {
-            return string.Equals(strategyName, "Item.GUID", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(strategyName, "InstanceGuid", StringComparison.OrdinalIgnoreCase);
-        }
 
         private static StrategyIndex BuildIndex(IEnumerable<ModelItem> targets, MatchStrategyDefinition definition)
         {

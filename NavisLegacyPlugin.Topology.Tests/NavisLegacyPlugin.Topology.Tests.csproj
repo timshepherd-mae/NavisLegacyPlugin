@@ -18,5 +18,7 @@
     <Compile Include="..\NavisLegacyPlugin\Services\Topology\TopologyAlignmentSettings.cs" Link="Production\TopologyAlignmentSettings.cs" />
     <Compile Include="..\NavisLegacyPlugin\Services\Topology\OrderedTopologyAligner.cs" Link="Production\OrderedTopologyAligner.cs" />
     <Compile Include="..\NavisLegacyPlugin\Services\Topology\TopologyConfidenceClassifier.cs" Link="Production\TopologyConfidenceClassifier.cs" />
+    <Compile Include="..\NavisLegacyPlugin\Models\Execution\TransferOutcomeModels.cs" Link="Production\TransferOutcomeModels.cs" />
+    <Compile Include="..\NavisLegacyPlugin\Models\Execution\TransferOutcomeSet.cs" Link="Production\TransferOutcomeSet.cs" />
   </ItemGroup>
 </Project>

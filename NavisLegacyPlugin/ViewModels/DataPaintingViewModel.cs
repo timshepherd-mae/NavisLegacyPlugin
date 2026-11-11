@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Data;
 using System.IO;
@@ -27,6 +28,7 @@ using NavisLegacyPlugin.Services.Collections;
 using NavisLegacyPlugin.Services.ExternalSources;
 using NavisLegacyPlugin.Services.Matching;
 using NavisLegacyPlugin.Commands;
+using NavisLegacyPlugin.Models.Topology;
 using System.Windows;
 
 namespace NavisLegacyPlugin.ViewModels
@@ -40,19 +42,6 @@ namespace NavisLegacyPlugin.ViewModels
 		private readonly SelectionSetPathResolver _selectionSetResolver = new SelectionSetPathResolver();
         private readonly IExternalExportPopulationService _externalExportPopulationService;
 
-
-        private bool _expectDuplicateGuids;
-        public bool ExpectDuplicateGuids
-        {
-            get { return _expectDuplicateGuids; }
-            set
-            {
-                if (_expectDuplicateGuids == value) return;
-                _expectDuplicateGuids = value;
-                DuplicateGuidMatchOptions.ExpectDuplicateGuids = value;
-                OnPropertyChanged();
-            }
-        }
 
         private MatchingStrategyMode _matchingStrategy = MatchingStrategyMode.Direct;
         public MatchingStrategyMode MatchingStrategy
@@ -140,6 +129,8 @@ namespace NavisLegacyPlugin.ViewModels
         public ICommand TransferExternalSourceCommand { get; }
         public ICommand ValidateExternalTransferCommand { get; }
         public ICommand ClearExternalTransferCommand { get; }
+        public ICommand CopyTopologyReviewCommand { get; }
+        public ICommand SelectTopologyTargetCommand { get; }
         public ICommand FindBlankRidCandidatesCommand { get; }
         public ICommand PurgeBlankRidCommand { get; }
         public ICommand PrepareClearRidCommand { get; }
@@ -189,7 +180,7 @@ namespace NavisLegacyPlugin.ViewModels
         }
 
         private TransferOutcomeSet _lastOutcomeSet;
-        public TransferOutcomeSet LastOutcomeSet { get { return _lastOutcomeSet; } private set { _lastOutcomeSet = value; OnPropertyChanged(); } }
+        public TransferOutcomeSet LastOutcomeSet { get { return _lastOutcomeSet; } private set { _lastOutcomeSet = value; OnPropertyChanged(); OnPropertyChanged(nameof(LastTopologyApplicable)); OnPropertyChanged(nameof(LastTopologyGood)); OnPropertyChanged(nameof(LastTopologyVague)); OnPropertyChanged(nameof(LastTopologyAmbiguous)); OnPropertyChanged(nameof(LastTopologyUnresolved)); OnPropertyChanged(nameof(LastTopologyConflict)); RebuildTopologyRows(); } }
         private int _lastMatched;
         public int LastMatched { get { return _lastMatched; } private set { _lastMatched = value; OnPropertyChanged(); } }
         private int _lastUnmatched;
@@ -214,9 +205,25 @@ namespace NavisLegacyPlugin.ViewModels
         
         private int _lastUnresolvedWithoutTransferableRid;
         public int LastUnresolvedWithoutTransferableRid { get { return _lastUnresolvedWithoutTransferableRid; } private set { _lastUnresolvedWithoutTransferableRid = value; OnPropertyChanged(); } }
+
+        private ExternalTransferExecutionConfig _validatedExternalConfig;
+        public ObservableCollection<TopologyReviewRow> TopologyReviewRows { get; private set; } = new ObservableCollection<TopologyReviewRow>();
+        private TopologyReviewRow _selectedTopologyReviewRow;
+        public TopologyReviewRow SelectedTopologyReviewRow { get { return _selectedTopologyReviewRow; } set { _selectedTopologyReviewRow=value; OnPropertyChanged(); } }
+        private string _topologyReviewFilter="All";
+        public string TopologyReviewFilter { get { return _topologyReviewFilter; } set { _topologyReviewFilter=value??"All"; OnPropertyChanged(); RebuildTopologyRows(); } }
+        public IEnumerable<string> TopologyReviewFilterOptions { get { return new[]{"All","Good","Vague","Ambiguous","Unresolved","Conflict","Failed/Skipped"}; } }
+        public int LastTopologyApplicable { get { return LastOutcomeSet==null?0:LastOutcomeSet.TopologyApplicable; } }
+        public int LastTopologyGood { get { return LastOutcomeSet==null?0:LastOutcomeSet.TopologyGood; } }
+        public int LastTopologyVague { get { return LastOutcomeSet==null?0:LastOutcomeSet.TopologyVague; } }
+        public int LastTopologyAmbiguous { get { return LastOutcomeSet==null?0:LastOutcomeSet.TopologyAmbiguous; } }
+        public int LastTopologyUnresolved { get { return LastOutcomeSet==null?0:LastOutcomeSet.TopologyUnresolved; } }
+        public int LastTopologyConflict { get { return LastOutcomeSet==null?0:LastOutcomeSet.TopologyConflict; } }
+
 private void InvalidateExternalTransfer()
         {
             IsExternalTransferValidated = false;
+            _validatedExternalConfig = null;
             Status = "Not validated";
         }
 
@@ -231,6 +238,7 @@ private void InvalidateExternalTransfer()
         private void ValidateExternalTransfer()
         {
             IsExternalTransferValidated = TryValidateExternalTransfer();
+            _validatedExternalConfig = IsExternalTransferValidated ? new ExternalTransferExecutionConfig(ExternalSourceFilePath,ExternalExportSetName.Trim(),ExportResolutionType??CollectionResolutionType.All,TargetResolutionType??CollectionResolutionType.All,Overwrite,MatchingStrategy,AnchorMethod) : null;
             Status = IsExternalTransferValidated
                 ? "Ready to execute external-to-live transfer"
                 : "Not validated";
@@ -292,28 +300,28 @@ private void InvalidateExternalTransfer()
 		public CollectionResolutionType? SourceResolutionType
 		{
 			get => _sourceResolutionType;
-			set { _sourceResolutionType = value; OnPropertyChanged(); }
+			set { if(_sourceResolutionType==value)return; _sourceResolutionType = value; OnPropertyChanged(); InvalidateExternalTransfer(); }
 		}
 
 		private CollectionResolutionType? _targetResolutionType;
 		public CollectionResolutionType? TargetResolutionType
 		{
 			get => _targetResolutionType;
-			set { _targetResolutionType = value; OnPropertyChanged(); }
+			set { if(_targetResolutionType==value)return; _targetResolutionType = value; OnPropertyChanged(); InvalidateExternalTransfer(); }
 		}
 
 		private CollectionResolutionType? _exportResolutionType;
 		public CollectionResolutionType? ExportResolutionType
 		{
 			get => _exportResolutionType;
-			set { _exportResolutionType = value; OnPropertyChanged(); }
+			set { if(_exportResolutionType==value)return; _exportResolutionType = value; OnPropertyChanged(); InvalidateExternalTransfer(); }
 		}
 
 		private bool _overwrite = false;
 		public bool Overwrite
 		{
 			get => _overwrite;
-			set { _overwrite = value; OnPropertyChanged(); }
+			set { if(_overwrite==value)return; _overwrite = value; OnPropertyChanged(); InvalidateExternalTransfer(); }
 		}
 
 		// --- Property Write Inputs ---
@@ -344,7 +352,7 @@ private void InvalidateExternalTransfer()
 
 			_writer = writer;
 			var executor = new ExecuteSignatureExecutor(_writer);
-            _paintingService = new DataPaintingService(_modelLookupService, executor);
+            _paintingService = new DataPaintingService(_modelLookupService, executor, _writer);
             _externalExportPopulationService = new ExternalExportPopulationService();
 
 			WriteTestCommand = new RelayCommand(WriteTest);
@@ -366,6 +374,8 @@ private void InvalidateExternalTransfer()
             TransferExternalSourceCommand = new RelayCommand(TransferExternalSource);
             ValidateExternalTransferCommand = new RelayCommand(ValidateExternalTransfer);
             ClearExternalTransferCommand = new RelayCommand(ClearExternalTransfer);
+            CopyTopologyReviewCommand = new RelayCommand(CopyTopologyReview);
+            SelectTopologyTargetCommand = new RelayCommand(SelectTopologyTarget);
             FindBlankRidCandidatesCommand = new RelayCommand(FindBlankRidCandidates);
             PurgeBlankRidCommand = new RelayCommand(PurgeBlankRid);
             PrepareClearRidCommand = new RelayCommand(PrepareClearRid);
@@ -619,8 +629,10 @@ private void InvalidateExternalTransfer()
                 return;
             }
 
-            MatchingStrategyMode selectedMatchingStrategy = MatchingStrategy;
-            AnchorMethod selectedAnchorMethod = AnchorMethod;
+            ExternalTransferExecutionConfig validatedConfig = _validatedExternalConfig;
+            if(validatedConfig==null){Status="Not validated";return;}
+            MatchingStrategyMode selectedMatchingStrategy = validatedConfig.MatchingStrategy;
+            AnchorMethod selectedAnchorMethod = validatedConfig.AnchorMethod;
 
             try
             {
@@ -630,7 +642,7 @@ private void InvalidateExternalTransfer()
                 Status = "Executing external-to-live transfer";
 
                 CollectionResolutionType resolution =
-                    ExportResolutionType ?? CollectionResolutionType.All;
+                    validatedConfig.SourceResolution;
 
                 var request = new ExternalExportPopulationRequest(
                     ExternalSourceFilePath,
@@ -663,7 +675,7 @@ private void InvalidateExternalTransfer()
                 stageTiming.Restart();
                 var targetItems = ResolveTransferPopulation(
                     targetRoots,
-                    TargetResolutionType);
+                    validatedConfig.TargetResolution);
                 LogPhase72Timing("TARGET population resolved", stageTiming);
                 var targetLookup = new Dictionary<string, ModelItem>(
                     StringComparer.OrdinalIgnoreCase);
@@ -685,7 +697,7 @@ private void InvalidateExternalTransfer()
                         WriteMode,
                         "Leaf",
                         StringComparison.OrdinalIgnoreCase),
-                    Overwrite = Overwrite
+                    Overwrite = validatedConfig.Overwrite
                 };
 
                 var progressConfig = new ProgressConfig
@@ -699,7 +711,7 @@ private void InvalidateExternalTransfer()
                     DataTransferSelectionSetNames.TargetPath,
                     DataTransferSelectionSetNames.ExportPath,
                     resolution,
-                    TargetResolutionType,
+                    validatedConfig.TargetResolution,
                     resolution);
 
                 ProgressText = "Preparing SOURCE transfer data...";
@@ -742,6 +754,24 @@ private void InvalidateExternalTransfer()
                 IsBusy = false;
             }
         }
+
+
+        private void RebuildTopologyRows()
+        {
+            TopologyReviewRows.Clear();
+            if(LastOutcomeSet==null)return;
+            foreach(TransferOutcome o in LastOutcomeSet.Outcomes.Where(x=>x.TopologyResolution!=null))
+            {
+                var r=o.TopologyResolution;var a=r.Anchors.FirstOrDefault();var c=r.Candidates.OrderByDescending(x=>x.Score).FirstOrDefault();var f=c==null?null:c.Candidate;
+                var row=new TopologyReviewRow{SourceRowIndex=o.Source.RowIndex,SourceOwner=r.SourceRidOwner==null?string.Empty:r.SourceRidOwner.DisplayName,RidValue=r.RidValue,MatchingStrategy=LastOutcomeSet.MatchingStrategy,AnchorMethod=LastOutcomeSet.AnchorMethod,AnchorStatus=a==null?string.Empty:a.Status.ToString(),AnchorKey=a==null?string.Empty:a.NormalizedKey,Status=r.Status.ToString(),Conflict=o.TopologyConflict,BestScore=r.BestScore,NextBestScore=r.NextBestScore,TargetOwner=f==null?string.Empty:f.DisplayName,OperationStatus=o.OperationStatus.ToString(),Reason=r.Reason,TargetInstanceGuid=f==null?string.Empty:f.InstanceGuid,TargetItemGuid=f==null?string.Empty:f.ItemGuid,TargetSourceFile=f==null?string.Empty:f.SourceFile,TargetDisplayName=f==null?string.Empty:f.DisplayName};
+                if(FilterRow(row))TopologyReviewRows.Add(row);
+            }
+        }
+        private bool FilterRow(TopologyReviewRow row){if(string.Equals(TopologyReviewFilter,"All",StringComparison.OrdinalIgnoreCase))return true;if(string.Equals(TopologyReviewFilter,"Conflict",StringComparison.OrdinalIgnoreCase))return row.Conflict;if(string.Equals(TopologyReviewFilter,"Failed/Skipped",StringComparison.OrdinalIgnoreCase))return row.OperationStatus=="Failed"||row.OperationStatus=="Skipped";return string.Equals(row.Status,TopologyReviewFilter,StringComparison.OrdinalIgnoreCase);}
+        private void CopyTopologyReview(){var b=new StringBuilder();b.AppendLine("SOURCE Row\tSOURCE Owner\tRID\tMatching Strategy\tAnchor Method\tAnchor Status\tAnchor Key\tClassification\tConflict\tBest Score\tNext Best\tSeparation\tTARGET Owner\tOperation\tReason");foreach(var r in TopologyReviewRows)b.AppendLine(string.Join("\t",new[]{r.SourceRowIndex.ToString(),Clean(r.SourceOwner),Clean(r.RidValue),Clean(r.MatchingStrategy),Clean(r.AnchorMethod),Clean(r.AnchorStatus),Clean(r.AnchorKey),Clean(r.Status),r.Conflict?"Yes":"No",r.BestScore.ToString(),r.NextBestScore.ToString(),r.Separation.ToString(),Clean(r.TargetOwner),Clean(r.OperationStatus),Clean(r.Reason)}));if(b.Length>0)Clipboard.SetText(b.ToString());}
+        private static string Clean(string x){return (x??string.Empty).Replace("\t"," ").Replace("\r"," ").Replace("\n"," ");}
+        private void SelectTopologyTarget(){if(SelectedTopologyReviewRow==null){Status="Select a topology review row first.";return;}var doc=Autodesk.Navisworks.Api.Application.ActiveDocument;if(doc==null)return;try{var roots=_selectionSetResolver.ResolveRequired(doc,DataTransferSelectionSetNames.TargetPath);var items=ResolveTransferPopulation(roots,_validatedExternalConfig==null?TargetResolutionType:_validatedExternalConfig.TargetResolution);var matches=items.Cast<ModelItem>().Where(x=>FingerprintMatches(x,SelectedTopologyReviewRow)).Distinct(ModelItemReferenceComparer.Instance).ToList();if(matches.Count!=1){Status="TARGET selection unchanged: retained fingerprint resolved to "+matches.Count+" items.";return;}var selected=new ModelItemCollection();selected.Add(matches[0]);doc.CurrentSelection.CopyFrom(selected);Status="TARGET item selected.";}catch(Exception ex){Status="TARGET selection unchanged: "+ex.Message;}}
+        private static bool FingerprintMatches(ModelItem item,TopologyReviewRow row){if(item==null)return false;if(!string.IsNullOrWhiteSpace(row.TargetInstanceGuid)&&!string.Equals(item.InstanceGuid.ToString("D"),row.TargetInstanceGuid,StringComparison.OrdinalIgnoreCase))return false;if(!string.IsNullOrWhiteSpace(row.TargetDisplayName)&&!string.Equals(item.DisplayName,row.TargetDisplayName,StringComparison.OrdinalIgnoreCase))return false;return true;}
 
         private void ApplyExternalRidSummary(TransferOutcomeSet outcomeSet)
         {
