@@ -126,6 +126,30 @@ namespace NavisLegacyPlugin.Models.Topology
         [DataMember(Order = 4)] public ReadOnlyCollection<TopologyAlignmentStep> Alignment { get; private set; }
     }
 
+
+    [DataContract]
+    public sealed class TopologyAnchorSummary
+    {
+        public TopologyAnchorSummary(int totalAnchorLeaves,int completeAnchorKeys,int uniqueResolvedAnchors,
+            int unmatchedAnchors,int ambiguousAnchors,int agreeingAnchors,int dissentingAnchors,
+            int distinctRouteSignatures,int representativeAnchorsUsed,int representativeAnchorLimit,string deterministicSelectionRule)
+        { TotalAnchorLeaves=totalAnchorLeaves;CompleteAnchorKeys=completeAnchorKeys;UniqueResolvedAnchors=uniqueResolvedAnchors;
+          UnmatchedAnchors=unmatchedAnchors;AmbiguousAnchors=ambiguousAnchors;AgreeingAnchors=agreeingAnchors;
+          DissentingAnchors=dissentingAnchors;DistinctRouteSignatures=distinctRouteSignatures;
+          RepresentativeAnchorsUsed=representativeAnchorsUsed;RepresentativeAnchorLimit=representativeAnchorLimit;
+          DeterministicSelectionRule=deterministicSelectionRule??string.Empty; }
+        [DataMember(Order=1)] public int TotalAnchorLeaves{get;private set;}
+        [DataMember(Order=2)] public int CompleteAnchorKeys{get;private set;}
+        [DataMember(Order=3)] public int UniqueResolvedAnchors{get;private set;}
+        [DataMember(Order=4)] public int UnmatchedAnchors{get;private set;}
+        [DataMember(Order=5)] public int AmbiguousAnchors{get;private set;}
+        [DataMember(Order=6)] public int AgreeingAnchors{get;private set;}
+        [DataMember(Order=7)] public int DissentingAnchors{get;private set;}
+        [DataMember(Order=8)] public int DistinctRouteSignatures{get;private set;}
+        [DataMember(Order=9)] public int RepresentativeAnchorsUsed{get;private set;}
+        [DataMember(Order=10)] public int RepresentativeAnchorLimit{get;private set;}
+        [DataMember(Order=11)] public string DeterministicSelectionRule{get;private set;}
+    }
     [DataContract]
     public sealed class TopologyResolution
     {
@@ -133,6 +157,13 @@ namespace NavisLegacyPlugin.Models.Topology
             int bestScore, int nextBestScore, IEnumerable<TopologyAnchorEvidence> anchors,
             TopologyItemFingerprint sourceRidOwner, string ridValue,
             IEnumerable<TopologyPathNode> sourcePath, IEnumerable<TopologyCandidateEvidence> candidates)
+            : this(status,reason,writeEligible,bestScore,nextBestScore,anchors,sourceRidOwner,ridValue,sourcePath,candidates,null)
+        { }
+        public TopologyResolution(TopologyResolutionStatus status, string reason, bool writeEligible,
+            int bestScore, int nextBestScore, IEnumerable<TopologyAnchorEvidence> anchors,
+            TopologyItemFingerprint sourceRidOwner, string ridValue,
+            IEnumerable<TopologyPathNode> sourcePath, IEnumerable<TopologyCandidateEvidence> candidates,
+            TopologyAnchorSummary anchorSummary)
         {
             Status = status;
             Reason = reason ?? string.Empty;
@@ -145,6 +176,7 @@ namespace NavisLegacyPlugin.Models.Topology
             RidValue = ridValue ?? string.Empty;
             SourcePath = new ReadOnlyCollection<TopologyPathNode>((sourcePath ?? Enumerable.Empty<TopologyPathNode>()).ToList());
             Candidates = new ReadOnlyCollection<TopologyCandidateEvidence>((candidates ?? Enumerable.Empty<TopologyCandidateEvidence>()).ToList());
+            AnchorSummary = anchorSummary;
         }
 
         [DataMember(Order = 1)] public TopologyResolutionStatus Status { get; private set; }
@@ -158,5 +190,6 @@ namespace NavisLegacyPlugin.Models.Topology
         [DataMember(Order = 9)] public string RidValue { get; private set; }
         [DataMember(Order = 10)] public ReadOnlyCollection<TopologyPathNode> SourcePath { get; private set; }
         [DataMember(Order = 11)] public ReadOnlyCollection<TopologyCandidateEvidence> Candidates { get; private set; }
+        [DataMember(Order = 12)] public TopologyAnchorSummary AnchorSummary { get; private set; }
     }
 }

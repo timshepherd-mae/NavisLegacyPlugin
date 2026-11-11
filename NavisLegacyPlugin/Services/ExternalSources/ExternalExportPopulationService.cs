@@ -25,9 +25,13 @@ namespace NavisLegacyPlugin.Services.ExternalSources
             public volatile bool StopRequested;
         }
 
+        public ExternalExportPopulationResponse Validate(ExternalExportPopulationRequest request, IProgress<ExternalSourceProgress> progress = null)
+        { return Execute(request, progress, true); }
         public ExternalExportPopulationResponse Resolve(
             ExternalExportPopulationRequest request,
             IProgress<ExternalSourceProgress> progress = null)
+        { return Execute(request, progress, false); }
+        private ExternalExportPopulationResponse Execute(ExternalExportPopulationRequest request, IProgress<ExternalSourceProgress> progress, bool validationOnly)
         {
             if (request == null)
                 throw new ArgumentNullException("request");
@@ -88,7 +92,7 @@ namespace NavisLegacyPlugin.Services.ExternalSources
 
                 automation.ExecuteAddInPlugin(
                     WorkerPluginId,
-                    "WORKER",
+                    validationOnly ? "VALIDATE" : "WORKER",
                     responsePath,
                     request.FilePath,
                     request.ExportSetName,

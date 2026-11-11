@@ -19,9 +19,10 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
     {
         public override int Execute(params string[] parameters)
         {
-            if (parameters == null || parameters.Length < 6 || parameters[0] != "WORKER")
+            if (parameters == null || parameters.Length < 6 || (parameters[0] != "WORKER" && parameters[0] != "VALIDATE"))
                 return -1;
 
+            bool validationOnly = parameters[0] == "VALIDATE";
             string output = parameters[1];
             string source = parameters[2];
             string exportName = parameters[3];
@@ -63,10 +64,16 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                                 ? resolved.LeafItems
                                 : resolved.AllItems;
 
-                    List<ModelItem> outputItemList = outputItems
-                        .Where(item => item != null)
-                        .ToList();
+                    List<ModelItem> outputItemList = outputItems.Where(item => item != null).ToList();
                     int outputTotal = outputItemList.Count;
+                    if (outputTotal == 0) throw new InvalidOperationException("The external EXPORT Selection Set contains no items for the selected " + type + " resolution.");
+                    if (validationOnly)
+                    {
+                        response.Success = true;
+                        response.SourceHashAfter = response.SourceHashBefore;
+                        PublishProgress(progressPath, ExternalSourceProgressStage.ExternalSourceReady, outputTotal, outputTotal, "External SOURCE validation complete.", true);
+                        throw new ValidationCompletedException();
+                    }
                     int outputCurrent = 0;
                     PublishProgress(progressPath, ExternalSourceProgressStage.ReadingSourceData,
                         0, outputTotal, "Reading SOURCE data 0/" + outputTotal + "...", true);
@@ -128,6 +135,9 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     PublishProgress(progressPath, ExternalSourceProgressStage.ExternalSourceReady,
                         outputTotal, outputTotal, "External SOURCE data ready.", true);
                 }
+                catch (ValidationCompletedException)
+                {
+                }
                 catch (Exception exception)
                 {
                     response.Success = false;
@@ -157,6 +167,7 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             return response.Success ? 0 : -1;
         }
 
+        private sealed class ValidationCompletedException : Exception { }
         private static bool ShouldPublishItemProgress(int current, int total)
         {
             if (current <= 1 || current >= total) return true;

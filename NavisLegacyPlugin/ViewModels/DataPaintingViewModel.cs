@@ -227,24 +227,28 @@ private void InvalidateExternalTransfer()
             Status = "Not validated";
         }
 
-        private bool TryValidateExternalTransfer()
+        private bool TryValidateExternalTransfer() { return _validatedExternalConfig != null; }
+        private async void ValidateExternalTransfer()
         {
-            return !string.IsNullOrWhiteSpace(ExternalSourceFilePath)
-                && File.Exists(ExternalSourceFilePath)
-                && !string.IsNullOrWhiteSpace(ExternalExportSetName)
-                && Autodesk.Navisworks.Api.Application.ActiveDocument != null;
+            try
+            {
+                IsBusy=true;IsExternalTransferValidated=false;_validatedExternalConfig=null;Status="Validating external SOURCE and live TARGET...";
+                var definition=new ExternalSourceFileDefinitionService().CreateRequired(ExternalSourceFilePath);
+                if(string.IsNullOrWhiteSpace(ExternalExportSetName))throw new InvalidOperationException("An external EXPORT Selection Set name is required.");
+                CollectionResolutionType sourceResolution=SourceResolutionType??CollectionResolutionType.All;
+                CollectionResolutionType targetResolution=TargetResolutionType??CollectionResolutionType.All;
+                var response=await System.Threading.Tasks.Task.Run(()=>_externalExportPopulationService.Validate(new ExternalExportPopulationRequest(definition.FullPath,ExternalExportSetName.Trim(),sourceResolution),new Progress<ExternalSourceProgress>(ApplyExternalSourceProgress)));
+                if(response==null||!response.Success)throw new InvalidOperationException(response==null?"External EXPORT validation returned no response.":response.Error);
+                int sourceCount=sourceResolution==CollectionResolutionType.Branch?response.BranchCount:sourceResolution==CollectionResolutionType.Leaf?response.LeafCount:response.AllCount;
+                if(sourceCount==0)throw new InvalidOperationException("External EXPORT contains no items for the selected "+sourceResolution+" resolution.");
+                Document document=Autodesk.Navisworks.Api.Application.ActiveDocument;if(document==null)throw new InvalidOperationException("No active Navisworks document is available.");
+                var hierarchy=new DataTransferHierarchyValidator(new NavisSelectionSetProvider()).ValidateScope(document,DataTransferSelectionSetNames.Target);if(!hierarchy.IsValid)throw new InvalidOperationException(hierarchy.ToDisplayMessage());
+                var roots=_selectionSetResolver.ResolveRequired(document,DataTransferSelectionSetNames.TargetPath);var targetItems=ResolveTransferPopulation(roots,targetResolution);if(targetItems.Count==0)throw new InvalidOperationException("TARGET contains no items for the selected "+targetResolution+" resolution.");
+                _validatedExternalConfig=new ExternalTransferExecutionConfig(definition.FullPath,ExternalExportSetName.Trim(),sourceResolution,targetResolution,sourceCount,targetItems.Count,Overwrite,MatchingStrategy,AnchorMethod);IsExternalTransferValidated=true;Status="Ready to execute external-to-live transfer. SOURCE: "+sourceCount+"; TARGET: "+targetItems.Count+".";
+            }
+            catch(Exception ex){IsExternalTransferValidated=false;_validatedExternalConfig=null;Status="Validation failed: "+ex.Message;}
+            finally{IsBusy=false;}
         }
-
-        private void ValidateExternalTransfer()
-        {
-            IsExternalTransferValidated = TryValidateExternalTransfer();
-            _validatedExternalConfig = IsExternalTransferValidated ? new ExternalTransferExecutionConfig(ExternalSourceFilePath,ExternalExportSetName.Trim(),ExportResolutionType??CollectionResolutionType.All,TargetResolutionType??CollectionResolutionType.All,Overwrite,MatchingStrategy,AnchorMethod) : null;
-            Status = IsExternalTransferValidated
-                ? "Ready to execute external-to-live transfer"
-                : "Not validated";
-            Debug.WriteLine("[PHASE65B3] Validation completed valid=" + IsExternalTransferValidated + ".");
-        }
-
         private void ClearExternalTransfer()
         {
             _externalSourceFilePath = string.Empty;
@@ -677,6 +681,7 @@ private void InvalidateExternalTransfer()
                     targetRoots,
                     validatedConfig.TargetResolution);
                 LogPhase72Timing("TARGET population resolved", stageTiming);
+                if(targetItems.Count!=validatedConfig.TargetItemCount)throw new InvalidOperationException("TARGET population changed after validation. Revalidate before execution.");
                 var targetLookup = new Dictionary<string, ModelItem>(
                     StringComparer.OrdinalIgnoreCase);
                 LogPhase72Timing("TARGET diagnostics skipped in normal transfer path", phase72Timing);

@@ -1,0 +1,2 @@
+using System;using Microsoft.VisualStudio.TestTools.UnitTesting;using NavisLegacyPlugin.Services.Topology;
+namespace NavisLegacyPlugin.Topology.Tests{[TestClass]public class RepresentativeAnchorSettingsTests{[TestMethod]public void DefaultRepresentativeCap_IsFive(){Assert.AreEqual(5,new TopologyAlignmentSettings().MaximumRepresentativeAnchorsPerRoute);}[TestMethod]public void ZeroRepresentativeCap_Throws(){var s=new TopologyAlignmentSettings{MaximumRepresentativeAnchorsPerRoute=0};Assert.ThrowsException<InvalidOperationException>(()=>s.Validate());}}}

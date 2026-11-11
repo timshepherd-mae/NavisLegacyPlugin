@@ -17,6 +17,7 @@ namespace NavisLegacyPlugin.Services.Topology
             OwnerWeight = 32;
             MinimumContextWeight = 8;
             ContextWeightReduction = 6;
+            MaximumRepresentativeAnchorsPerRoute = 5;
         }
 
         public int GoodThreshold { get; set; }
@@ -30,6 +31,7 @@ namespace NavisLegacyPlugin.Services.Topology
         public int OwnerWeight { get; set; }
         public int MinimumContextWeight { get; set; }
         public int ContextWeightReduction { get; set; }
+        public int MaximumRepresentativeAnchorsPerRoute { get; set; }
 
         public void Validate()
         {
@@ -37,6 +39,7 @@ namespace NavisLegacyPlugin.Services.Topology
             if (VagueThreshold < 0 || VagueThreshold > GoodThreshold) throw new InvalidOperationException("VagueThreshold must be between 0 and GoodThreshold.");
             if (MinimumSeparation < 0 || MinimumSeparation > 100) throw new InvalidOperationException("MinimumSeparation must be between 0 and 100.");
             if (AnchorWeight <= 0 || OwnerWeight <= 0 || MinimumContextWeight <= 0) throw new InvalidOperationException("Topology weights must be positive.");
+            if (MaximumRepresentativeAnchorsPerRoute < 1) throw new InvalidOperationException("MaximumRepresentativeAnchorsPerRoute must be at least 1.");
         }
     }
 }

@@ -4,6 +4,9 @@ namespace NavisLegacyPlugin.Services.ExternalSources
 {
     public interface IExternalExportPopulationService
     {
+        ExternalExportPopulationResponse Validate(
+            ExternalExportPopulationRequest request,
+            IProgress<ExternalSourceProgress> progress = null);
         ExternalExportPopulationResponse Resolve(
             ExternalExportPopulationRequest request,
             IProgress<ExternalSourceProgress> progress = null);
