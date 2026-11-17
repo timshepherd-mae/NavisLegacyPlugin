@@ -10,18 +10,27 @@ namespace NavisLegacyPlugin.Services.Topology
     {
         public TopologySourceGroup(string groupId, string ridValue, TopologyItemFingerprint sourceOwner,
             IEnumerable<TopologyPathNode> sourcePath, IEnumerable<TopologyAnchorEvidence> anchors)
+            : this(groupId, ridValue, sourceOwner, sourcePath, anchors, 1)
         {
+        }
+        public TopologySourceGroup(string groupId, string ridValue, TopologyItemFingerprint sourceOwner,
+            IEnumerable<TopologyPathNode> sourcePath, IEnumerable<TopologyAnchorEvidence> anchors,
+            int ownerDepthFromAnchor)
+        {
+            if (ownerDepthFromAnchor < 0) throw new ArgumentOutOfRangeException("ownerDepthFromAnchor");
             GroupId = groupId ?? string.Empty;
             RidValue = ridValue ?? string.Empty;
             SourceOwner = sourceOwner;
             SourcePath = (sourcePath ?? Enumerable.Empty<TopologyPathNode>()).ToList().AsReadOnly();
             Anchors = (anchors ?? Enumerable.Empty<TopologyAnchorEvidence>()).ToList().AsReadOnly();
+            OwnerDepthFromAnchor = ownerDepthFromAnchor;
         }
         public string GroupId { get; private set; }
         public string RidValue { get; private set; }
         public TopologyItemFingerprint SourceOwner { get; private set; }
         public IReadOnlyList<TopologyPathNode> SourcePath { get; private set; }
         public IReadOnlyList<TopologyAnchorEvidence> Anchors { get; private set; }
+        public int OwnerDepthFromAnchor { get; private set; }
     }
 
     public sealed class TopologyTargetCandidate
@@ -52,3 +61,5 @@ namespace NavisLegacyPlugin.Services.Topology
         public TopologyTargetCandidate SelectedCandidate { get; private set; }
     }
 }
+
+

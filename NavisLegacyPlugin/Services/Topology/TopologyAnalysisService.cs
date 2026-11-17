@@ -25,7 +25,7 @@ namespace NavisLegacyPlugin.Services.Topology
             var evidence = new List<TopologyCandidateEvidence>();
             foreach (TopologyTargetCandidate candidate in available)
             {
-                evidence.Add(_aligner.Align(candidate.Fingerprint, source.SourcePath, candidate.Path));
+                evidence.Add(_aligner.Align(candidate.Fingerprint, source.SourcePath, candidate.Path, source.OwnerDepthFromAnchor));
             }
             TopologyResolution resolution = _classifier.Classify(source.Anchors, source.SourceOwner,
                 source.RidValue, source.SourcePath, evidence);
@@ -48,3 +48,5 @@ namespace NavisLegacyPlugin.Services.Topology
         }
     }
 }
+
+

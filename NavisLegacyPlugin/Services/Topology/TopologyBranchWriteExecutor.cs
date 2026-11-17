@@ -33,13 +33,22 @@ namespace NavisLegacyPlugin.Services.Topology
             if (reconciliation == null) throw new ArgumentNullException("reconciliation");
             var targetBoundary = new HashSet<ModelItem>((resolvedTargetPopulation ?? Enumerable.Empty<ModelItem>())
                 .Where(x => x != null), ModelItemReferenceComparer.Instance);
-            var results = new List<TopologyWriteExecution>();
+            var branchBoundary = new HashSet<ModelItem>(
+                (resolvedTargetPopulation ?? Enumerable.Empty<ModelItem>())
+                    .Where(item => item != null && HasChildren(item)),
+                ModelItemReferenceComparer.Instance); var results = new List<TopologyWriteExecution>();
             foreach (TopologyWritePlan plan in reconciliation.Plans)
             {
                 if (!targetBoundary.Contains(plan.Target))
                 {
                     results.Add(new TopologyWriteExecution(plan, TransferOperationStatus.Failed,
                         "Final revalidation rejected an item outside the resolved TARGET population.", string.Empty));
+                    continue;
+                }
+                if (!HasChildren(plan.Target) || !branchBoundary.Contains(plan.Target))
+                {
+                    results.Add(new TopologyWriteExecution(plan, TransferOperationStatus.Failed,
+                        "Final revalidation rejected a non-branch topology target.", string.Empty));
                     continue;
                 }
                 if (string.IsNullOrWhiteSpace(plan.RidValue))
@@ -70,6 +79,13 @@ namespace NavisLegacyPlugin.Services.Topology
                 }
             }
             return results.AsReadOnly();
+        }
+
+        private static bool HasChildren(ModelItem item)
+        {
+            if (item == null) return false;
+            foreach (ModelItem child in item.Children) return true;
+            return false;
         }
     }
 }

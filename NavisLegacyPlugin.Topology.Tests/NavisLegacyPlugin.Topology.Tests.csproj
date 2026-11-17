@@ -20,5 +20,7 @@
     <Compile Include="..\NavisLegacyPlugin\Services\Topology\TopologyConfidenceClassifier.cs" Link="Production\TopologyConfidenceClassifier.cs" />
     <Compile Include="..\NavisLegacyPlugin\Models\Execution\TransferOutcomeModels.cs" Link="Production\TransferOutcomeModels.cs" />
     <Compile Include="..\NavisLegacyPlugin\Models\Execution\TransferOutcomeSet.cs" Link="Production\TransferOutcomeSet.cs" />
+    <Compile Include="..\NavisLegacyPlugin\Services\Topology\RepresentativeAnchorSelector.cs" Link="Production\RepresentativeAnchorSelector.cs" />
+    <Compile Include="..\NavisLegacyPlugin\Services\Topology\TopologyApplicabilityRules.cs" Link="Production\TopologyApplicabilityRules.cs" />
   </ItemGroup>
 </Project>

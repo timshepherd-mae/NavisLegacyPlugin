@@ -23,6 +23,14 @@ namespace NavisLegacyPlugin.Services.Topology
             return result.AsReadOnly();
         }
 
+        public ModelItem GetAncestorAtDepth(ModelItem anchor, int depthFromAnchor)
+        {
+            if (anchor == null || depthFromAnchor < 0) return null;
+            ModelItem current = anchor;
+            for (int depth = 0; depth < depthFromAnchor && current != null; depth++)
+                current = current.Parent;
+            return current;
+        }
         public TopologyItemFingerprint CreateFingerprint(ModelItem item)
         {
             if (item == null) return null;
@@ -53,3 +61,5 @@ namespace NavisLegacyPlugin.Services.Topology
         }
     }
 }
+
+
