@@ -250,6 +250,15 @@ namespace NavisLegacyPlugin.Services.Topology
                 stopwatch,
                 "anchors=" + anchorRows.Count);
 
+            Log(
+                "SOURCE topology applicability assessed",
+                stopwatch,
+                "counts={" + BuildApplicabilitySummary(anchorRows) + "}");
+
+            LogStructuralBranchEvidence(
+                anchorRows,
+                stopwatch);
+
             var analyses =
                 new List<TopologyGroupAnalysis>();
 
@@ -332,7 +341,8 @@ namespace NavisLegacyPlugin.Services.Topology
                 + "; notApplicable=" + anchorRows.Count(row => !IsTopologyApplicable(row))
                 + "; branchOwnerGroups=" + analyses.Count
                 + "; outcomes=" + resultRows.Count
-                + "; leafWriteAttempts=0");
+                + "; leafWriteAttempts=0"
+                + "; applicability={" + BuildApplicabilitySummary(anchorRows) + "}");
 
             return anchorRows
                 .OrderBy(row => row.RowIndex)
@@ -1009,17 +1019,33 @@ namespace NavisLegacyPlugin.Services.Topology
 
         private static bool IsTopologyApplicable(AnchorRow row)
         {
-            return row != null
-                && row.Snapshot != null
-                && row.Snapshot.RidOwner != null
-                && row.Match != null
-                && TopologyApplicabilityRules.IsBranchOwnerRoute(
-                    row.Snapshot.HasChildren,
-                    row.Snapshot.HasRidOwner,
-                    row.Snapshot.RidOwnerDepthFromAnchor,
-                    row.Snapshot.RidOwner.HasChildren,
-                    row.Rid,
-                    row.Match.Key);
+            return AssessTopologyApplicability(row).IsApplicable;
+        }
+
+        private static TopologyApplicabilityAssessment AssessTopologyApplicability(
+            AnchorRow row)
+        {
+            if (row == null || row.Snapshot == null)
+            {
+                return new TopologyApplicabilityAssessment(
+                    false,
+                    TopologyApplicabilityReasonCode.OwnerNotResolved,
+                    "The SOURCE topology row or snapshot is missing.");
+            }
+
+            string anchorKey = row.Match == null
+                ? string.Empty
+                : row.Match.Key;
+            bool ownerHasChildren = row.Snapshot.RidOwner != null
+                && row.Snapshot.RidOwner.HasChildren;
+
+            return TopologyApplicabilityRules.Assess(
+                row.Snapshot.HasChildren,
+                row.Snapshot.HasRidOwner,
+                row.Snapshot.RidOwnerDepthFromAnchor,
+                ownerHasChildren,
+                row.Rid,
+                anchorKey);
         }
 
         private static bool HasChildren(ModelItem item)
@@ -1056,10 +1082,63 @@ namespace NavisLegacyPlugin.Services.Topology
                             "MAE-4D",
                             "RID",
                             row.Rid,
-                            "Leaf-owned RID is handled by Direct mode, or the SOURCE row does not contain a complete leaf-anchor to branch-owner topology relationship.",
+                            BuildTopologyEligibilityReason(row),
                             string.Empty)
                     });
             }
+        }
+
+
+        private static string BuildTopologyEligibilityReason(AnchorRow row)
+        {
+            TopologyApplicabilityAssessment assessment =
+                AssessTopologyApplicability(row);
+            string workerStatus = row == null || row.Snapshot == null
+                ? "None"
+                : row.Snapshot.RidOwnerEvidenceStatus.ToString();
+            string workerReason = row == null || row.Snapshot == null
+                ? string.Empty
+                : row.Snapshot.RidOwnerEvidenceReason ?? string.Empty;
+            string recoveredOwner = row == null
+                || row.Snapshot == null
+                || row.Snapshot.RecoveredRidOwner == null
+                    ? "<none>"
+                    : row.Snapshot.RecoveredRidOwner.DisplayName ?? string.Empty;
+            int recoveredDepth = row == null || row.Snapshot == null
+                ? -1
+                : row.Snapshot.RecoveredRidOwnerDepthFromAnchor;
+
+            return "[" + assessment.ReasonCode + "] "
+                + assessment.Reason
+                + " WorkerStatus=" + workerStatus
+                + "; WorkerReason=" + workerReason
+                + "; RecoveredOwner=" + recoveredOwner
+                + "; RecoveredDepth="
+                + recoveredDepth.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static string BuildApplicabilitySummary(
+            IEnumerable<AnchorRow> rows)
+        {
+            List<IGrouping<TopologyApplicabilityReasonCode, AnchorRow>> groups =
+                (rows ?? Enumerable.Empty<AnchorRow>())
+                    .GroupBy(row => AssessTopologyApplicability(row).ReasonCode)
+                    .OrderBy(group => group.Key.ToString())
+                    .ToList();
+
+            string applicability = string.Join(
+                "; ",
+                groups.Select(group => group.Key + "=" + group.Count()));
+            string recovered = string.Join(
+                "; ",
+                (rows ?? Enumerable.Empty<AnchorRow>())
+                    .GroupBy(row => row == null || row.Snapshot == null
+                        ? ExternalRidOwnerEvidenceStatus.None
+                        : row.Snapshot.RidOwnerEvidenceStatus)
+                    .OrderBy(group => group.Key.ToString())
+                    .Select(group => group.Key + "=" + group.Count()));
+
+            return applicability + "}; recoveredOwnerStatus={" + recovered;
         }
 
         private static List<AnchorRow> SelectRepresentatives(
@@ -1492,6 +1571,128 @@ namespace NavisLegacyPlugin.Services.Topology
                 + "; reason="
                 + (reason ?? string.Empty)
                 + ".");
+        }
+
+        private static void LogStructuralBranchEvidence(
+            IEnumerable<AnchorRow> rows,
+            Stopwatch stopwatch)
+        {
+            List<StructuralBranchEvidenceRow> evidence =
+                BuildStructuralBranchEvidence(rows);
+            StructuralOwnerSelectionResult selectionResult =
+                StructuralBranchEvidenceAnalyzer.AnalyseAndSelect(evidence);
+            IReadOnlyList<StructuralBranchCluster> clusters = selectionResult.Clusters;
+
+            int singleRidClusters = clusters.Count(value => value.IsHomogeneous);
+            int selectedOwnerBranches = selectionResult.Selections
+                .Select(value => value.BranchKey)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            int mixedRidClusters = clusters.Count(value =>
+                value.DistinctLeafRidCount > 1);
+
+            Log(
+                "SOURCE structural branch evidence",
+                stopwatch,
+                "evidenceRows=" + evidence.Count
+                + "; branchClusters=" + clusters.Count
+                + "; singleRidClusters=" + singleRidClusters
+                + "; mixedRidClusters=" + mixedRidClusters
+                + "; selectedLeafRows=" + selectionResult.Selections.Count
+                + "; selectedOwnerBranches=" + selectedOwnerBranches
+                + "; noCandidateRows=" + selectionResult.NoCandidateRowCount
+                + "; ambiguousNearestRows=" + selectionResult.AmbiguousNearestRowCount
+                + "; selected={" + string.Join(
+                    " || ",
+                    selectionResult.Selections
+                        .GroupBy(value => value.BranchKey, StringComparer.OrdinalIgnoreCase)
+                        .Select(group => new { Branch = group.First().BranchName, Rid = group.First().Rid, Depth = group.Min(value => value.OwnerDepthFromAnchor), Leaves = group.Count(), Supporting = group.Max(value => value.SupportingLeafCount) })
+                        .OrderByDescending(value => value.Leaves)
+                        .Take(20)
+                        .Select(value => "branch=" + value.Branch + ", rid=" + value.Rid + ", selectedLeaves=" + value.Leaves + ", supportingLeaves=" + value.Supporting + ", depth=" + value.Depth))
+                + "}; top={" + string.Join(
+                    " || ",
+                    clusters.Take(20).Select(cluster =>
+                        "branch=" + cluster.BranchName
+                        + ", leaves=" + cluster.SupportingLeafCount
+                        + ", distinctRids=" + cluster.DistinctLeafRidCount
+                        + ", depth=" + cluster.MinimumDepth
+                        + "-" + cluster.MaximumDepth
+                        + ", branchRidMatches=" + cluster.BranchRidMatchCount
+                        + ", rids=[" + string.Join(",", cluster.LeafRids.Take(5)) + "]"))
+                + "}");
+        }
+
+        private static List<StructuralBranchEvidenceRow>
+            BuildStructuralBranchEvidence(IEnumerable<AnchorRow> rows)
+        {
+            var result = new List<StructuralBranchEvidenceRow>();
+
+            foreach (AnchorRow row in rows ?? Enumerable.Empty<AnchorRow>())
+            {
+                if (row == null
+                    || row.Snapshot == null
+                    || row.Snapshot.HasChildren
+                    || string.IsNullOrWhiteSpace(row.Rid)
+                    || string.Equals(row.Rid.Trim(), "\"\"", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                foreach (ExternalTopologyPathNodeSnapshot node in
+                    row.Snapshot.AncestorPath
+                        ?? new List<ExternalTopologyPathNodeSnapshot>())
+                {
+                    if (node == null
+                        || node.DepthFromItem <= 0
+                        || !node.HasChildren)
+                    {
+                        continue;
+                    }
+
+                    string branchKey = BuildStructuralBranchKey(node);
+                    string branchRid = GetSnapshotPathNodeRid(
+                        row.Snapshot,
+                        node.DepthFromItem);
+
+                    result.Add(
+                        new StructuralBranchEvidenceRow(
+                            row.RowIndex,
+                            row.Rid,
+                            node.DepthFromItem,
+                            branchKey,
+                            node.DisplayName,
+                            branchRid));
+                }
+            }
+
+            return result;
+        }
+
+        private static string BuildStructuralBranchKey(
+            ExternalTopologyPathNodeSnapshot node)
+        {
+            return string.Join(
+                "|",
+                new[]
+                {
+                    node.InstanceGuid ?? string.Empty,
+                    node.ItemGuid ?? string.Empty,
+                    node.SourceFile ?? string.Empty,
+                    node.DisplayName ?? string.Empty,
+                    node.DepthFromItem.ToString(CultureInfo.InvariantCulture)
+                }).ToUpperInvariant();
+        }
+
+        private static string GetSnapshotPathNodeRid(
+            ExternalModelItemSnapshot snapshot,
+            int depthFromAnchor)
+        {
+            // The current transport stores RID properties only on the extracted
+            // item snapshot. Ancestor RID values are not serialised per path
+            // node, so this diagnostic intentionally reports blank here rather
+            // than inventing evidence. T04-C tests structural clustering first.
+            return string.Empty;
         }
 
         private static void YieldToDispatcher(

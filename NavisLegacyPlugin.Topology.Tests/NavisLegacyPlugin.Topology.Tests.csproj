@@ -22,5 +22,7 @@
     <Compile Include="..\NavisLegacyPlugin\Models\Execution\TransferOutcomeSet.cs" Link="Production\TransferOutcomeSet.cs" />
     <Compile Include="..\NavisLegacyPlugin\Services\Topology\RepresentativeAnchorSelector.cs" Link="Production\RepresentativeAnchorSelector.cs" />
     <Compile Include="..\NavisLegacyPlugin\Services\Topology\TopologyApplicabilityRules.cs" Link="Production\TopologyApplicabilityRules.cs" />
+	<Compile Include="..\NavisLegacyPlugin\Services\Topology\PropagatedRidOwnerResolver.cs" Link="Production\PropagatedRidOwnerResolver.cs" />
+	<Compile Include="..\NavisLegacyPlugin\Services\Topology\StructuralBranchEvidenceAnalyzer.cs" Link="Production\StructuralBranchEvidenceAnalyzer.cs" />
   </ItemGroup>
 </Project>

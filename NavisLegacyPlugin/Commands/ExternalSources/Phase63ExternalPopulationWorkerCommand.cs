@@ -10,6 +10,7 @@ using Autodesk.Navisworks.Api.Plugins;
 using NavisLegacyPlugin.Models.Collections;
 using NavisLegacyPlugin.Models.ExternalSources;
 using NavisLegacyPlugin.Services.Collections;
+using NavisLegacyPlugin.Services.Topology;
 
 namespace NavisLegacyPlugin.Commands.ExternalSources
 {
@@ -255,9 +256,23 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             snapshot.RidOwnerDepthFromAnchor = -1;
             snapshot.RidOwner = null;
             snapshot.TopologyPath.Clear();
+            snapshot.RidOwnerEvidenceStatus = ExternalRidOwnerEvidenceStatus.None;
+            snapshot.RidOwnerEvidenceReason = "Owner evidence has not been evaluated.";
+            snapshot.AnchorRid = string.Empty;
+            snapshot.RidOwnerRid = string.Empty;
+            snapshot.RidPropagationBoundaryDepth = -1;
+            snapshot.RecoveredRidOwnerDepthFromAnchor = -1;
+            snapshot.RecoveredRidOwner = null;
+            snapshot.RecoveredRidOwnerReason = string.Empty;
+            snapshot.RecoveredTopologyPath.Clear();
+            snapshot.RecoveredTransparentNodeCount = 0;
+            snapshot.RecoveredSameRidBranchCount = 0;
+            snapshot.RecoveredBoundaryRid = string.Empty;
 
             if (path == null || path.Count == 0)
             {
+                snapshot.RidOwnerEvidenceReason =
+                    "No SOURCE ancestor path was available for owner recovery.";
                 return;
             }
 
@@ -265,6 +280,11 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 path[0].Item,
                 RidCategoryName,
                 RidPropertyName);
+
+            snapshot.AnchorRid = anchorRid ?? string.Empty;
+            snapshot.RidPropagationBoundaryDepth = FindRidPropagationBoundaryDepth(
+                path,
+                anchorRid);
 
             PathCapture owner = null;
 
@@ -310,6 +330,13 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
 
             if (owner == null)
             {
+                snapshot.RidOwnerEvidenceStatus =
+                    ExternalRidOwnerEvidenceStatus.None;
+                snapshot.RidOwnerEvidenceReason =
+                    IsTransferableRid(anchorRid)
+                        ? "No branch with the anchor RID was found by the current owner-recovery algorithm."
+                        : "The anchor has no transferable RID and no ancestor branch carrying a transferable RID was found.";
+                PopulateRecoveredRidOwnerEvidence(snapshot, path);
                 return;
             }
 
@@ -333,6 +360,153 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 snapshot.TopologyPath.Add(
                     CloneNode(value.Snapshot));
             }
+
+            PopulateRecoveredRidOwnerEvidence(snapshot, path);
+        }
+
+        private static void PopulateRecoveredRidOwnerEvidence(
+            ExternalModelItemSnapshot snapshot,
+            IReadOnlyList<PathCapture> path)
+        {
+            List<PropagatedRidPathFact> facts = (path ?? new PathCapture[0])
+                .Select(value => new PropagatedRidPathFact(
+                    value.Snapshot.DepthFromItem,
+                    value.Snapshot.HasChildren,
+                    ReadProperty(
+                        value.Item,
+                        RidCategoryName,
+                        RidPropertyName)))
+                .ToList();
+
+            PropagatedRidOwnerRecoveryResult result =
+                PropagatedRidOwnerResolver.Resolve(facts);
+
+            snapshot.RidOwnerEvidenceStatus = MapRecoveryStatus(result.Status);
+            snapshot.RidOwnerEvidenceReason = result.Reason;
+            snapshot.AnchorRid = result.AnchorRid;
+            snapshot.RidOwnerRid = result.OwnerRid;
+            snapshot.RidPropagationBoundaryDepth =
+                result.PropagationBoundaryDepth;
+            snapshot.RecoveredRidOwnerDepthFromAnchor =
+                result.OwnerDepthFromAnchor;
+            snapshot.RecoveredRidOwnerReason = result.Reason;
+            snapshot.RecoveredTransparentNodeCount = result.TransparentNodeCount;
+            snapshot.RecoveredSameRidBranchCount = result.SameRidBranchCount;
+            snapshot.RecoveredBoundaryRid = result.PropagationBoundaryRid;
+
+            PathCapture recoveredOwner = result.OwnerDepthFromAnchor < 0
+                ? null
+                : (path ?? new PathCapture[0]).FirstOrDefault(value =>
+                    value.Snapshot.DepthFromItem
+                        == result.OwnerDepthFromAnchor);
+            snapshot.RecoveredRidOwner = recoveredOwner == null
+                ? null
+                : CloneNode(recoveredOwner.Snapshot);
+
+            int contextLimit = result.OwnerDepthFromAnchor < 0
+                ? -1
+                : Math.Min(
+                    path.Count - 1,
+                    result.OwnerDepthFromAnchor
+                        + ContextNodesAboveOwner);
+
+            foreach (PathCapture value in path ?? new PathCapture[0])
+            {
+                if (contextLimit < 0
+                    || value.Snapshot.DepthFromItem > contextLimit)
+                {
+                    break;
+                }
+
+                snapshot.RecoveredTopologyPath.Add(
+                    CloneNode(value.Snapshot));
+            }
+        }
+
+        private static ExternalRidOwnerEvidenceStatus MapRecoveryStatus(
+            PropagatedRidOwnerRecoveryStatus status)
+        {
+            switch (status)
+            {
+                case PropagatedRidOwnerRecoveryStatus.LeafOwned:
+                    return ExternalRidOwnerEvidenceStatus.LeafOwned;
+                case PropagatedRidOwnerRecoveryStatus.BranchOwned:
+                    return ExternalRidOwnerEvidenceStatus.BranchOwned;
+                case PropagatedRidOwnerRecoveryStatus.Inconsistent:
+                    return ExternalRidOwnerEvidenceStatus.Inconsistent;
+                case PropagatedRidOwnerRecoveryStatus.Ambiguous:
+                    return ExternalRidOwnerEvidenceStatus.Ambiguous;
+                default:
+                    return ExternalRidOwnerEvidenceStatus.None;
+            }
+        }
+
+
+        private static void ApplyOwnerEvidenceClassification(
+            ExternalModelItemSnapshot snapshot)
+        {
+            if (snapshot == null || !snapshot.HasRidOwner || snapshot.RidOwner == null)
+            {
+                return;
+            }
+
+            if (snapshot.RidOwnerDepthFromAnchor < 0)
+            {
+                snapshot.RidOwnerEvidenceStatus =
+                    ExternalRidOwnerEvidenceStatus.Inconsistent;
+                snapshot.RidOwnerEvidenceReason =
+                    "An owner was retained with a negative owner depth.";
+                return;
+            }
+
+            if (snapshot.RidOwnerDepthFromAnchor == 0)
+            {
+                snapshot.RidOwnerEvidenceStatus =
+                    ExternalRidOwnerEvidenceStatus.LeafOwned;
+                snapshot.RidOwnerEvidenceReason =
+                    snapshot.HasChildren
+                        ? "The extracted SOURCE row owns the RID at depth zero and is a branch input row."
+                        : "The anchor leaf owns the RID at depth zero; Direct mode handles leaf-owned RID transfer.";
+                return;
+            }
+
+            if (!snapshot.RidOwner.HasChildren)
+            {
+                snapshot.RidOwnerEvidenceStatus =
+                    ExternalRidOwnerEvidenceStatus.Inconsistent;
+                snapshot.RidOwnerEvidenceReason =
+                    "The retained owner is above the anchor but is not a branch.";
+                return;
+            }
+
+            snapshot.RidOwnerEvidenceStatus =
+                ExternalRidOwnerEvidenceStatus.BranchOwned;
+            snapshot.RidOwnerEvidenceReason =
+                "The current recovery algorithm retained a branch RID owner above the leaf anchor.";
+        }
+
+        private static int FindRidPropagationBoundaryDepth(
+            IReadOnlyList<PathCapture> path,
+            string anchorRid)
+        {
+            if (path == null || path.Count <= 1 || !IsTransferableRid(anchorRid))
+            {
+                return -1;
+            }
+
+            for (int index = 1; index < path.Count; index++)
+            {
+                string currentRid = ReadProperty(
+                    path[index].Item,
+                    RidCategoryName,
+                    RidPropertyName);
+                if (!RidEquals(currentRid, anchorRid))
+                {
+                    return path[index].Snapshot.DepthFromItem;
+                }
+            }
+
+            return -1;
         }
 
         private static List<PathCapture> BuildAncestorPath(ModelItem item)
