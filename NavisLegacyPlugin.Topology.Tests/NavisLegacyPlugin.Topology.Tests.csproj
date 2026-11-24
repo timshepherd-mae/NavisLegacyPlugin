@@ -24,5 +24,7 @@
     <Compile Include="..\NavisLegacyPlugin\Services\Topology\TopologyApplicabilityRules.cs" Link="Production\TopologyApplicabilityRules.cs" />
 	<Compile Include="..\NavisLegacyPlugin\Services\Topology\PropagatedRidOwnerResolver.cs" Link="Production\PropagatedRidOwnerResolver.cs" />
 	<Compile Include="..\NavisLegacyPlugin\Services\Topology\StructuralBranchEvidenceAnalyzer.cs" Link="Production\StructuralBranchEvidenceAnalyzer.cs" />
+	<Compile Include="..\NavisLegacyPlugin\Models\ExternalSources\ExternalModelItemSnapshot.cs" Link="Production\ExternalModelItemSnapshot.cs" />
+	<Compile Include="..\NavisLegacyPlugin\Models\ExternalSources\ExternalSourceRidOwnerGroup.cs" Link="Production\ExternalSourceRidOwnerGroup.cs" />
   </ItemGroup>
 </Project>

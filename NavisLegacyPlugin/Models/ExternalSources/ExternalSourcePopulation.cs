@@ -15,13 +15,15 @@ namespace NavisLegacyPlugin.Models.ExternalSources
             string exportSetName,
             string resolutionType,
             IReadOnlyList<ExternalModelItemSnapshot> items,
-            IReadOnlyCollection<Guid> instanceGuids)
+            IReadOnlyCollection<Guid> instanceGuids,
+            IReadOnlyList<ExternalSourceRidOwnerGroup> ownerGroups)
         {
             SourceFile = sourceFile;
             ExportSetName = exportSetName;
             ResolutionType = resolutionType;
             Items = items ?? throw new ArgumentNullException("items");
             InstanceGuids = instanceGuids ?? throw new ArgumentNullException("instanceGuids");
+            OwnerGroups = ownerGroups ?? throw new ArgumentNullException("ownerGroups");
         }
 
         public string SourceFile { get; private set; }
@@ -29,5 +31,6 @@ namespace NavisLegacyPlugin.Models.ExternalSources
         public string ResolutionType { get; private set; }
         public IReadOnlyList<ExternalModelItemSnapshot> Items { get; private set; }
         public IReadOnlyCollection<Guid> InstanceGuids { get; private set; }
+        public IReadOnlyList<ExternalSourceRidOwnerGroup> OwnerGroups { get; private set; }
     }
 }

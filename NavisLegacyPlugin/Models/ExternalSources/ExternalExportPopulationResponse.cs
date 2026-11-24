@@ -6,7 +6,7 @@ namespace NavisLegacyPlugin.Models.ExternalSources
     [DataContract]
     public sealed class ExternalExportPopulationResponse
     {
-        public ExternalExportPopulationResponse() { Items = new List<ExternalModelItemSnapshot>(); }
+        public ExternalExportPopulationResponse() { Items = new List<ExternalModelItemSnapshot>(); OwnerGroups = new List<ExternalSourceRidOwnerGroup>(); }
         [DataMember(Order = 1)] public bool Success { get; set; }
         [DataMember(Order = 2)] public string Error { get; set; }
         [DataMember(Order = 3)] public string SourceFile { get; set; }
@@ -18,5 +18,9 @@ namespace NavisLegacyPlugin.Models.ExternalSources
         [DataMember(Order = 9)] public List<ExternalModelItemSnapshot> Items { get; set; }
         [DataMember(Order = 10)] public string SourceHashBefore { get; set; }
         [DataMember(Order = 11)] public string SourceHashAfter { get; set; }
+        [DataMember(Order = 12)] public List<ExternalSourceRidOwnerGroup> OwnerGroups { get; set; }
+        [DataMember(Order = 13)] public int ExplicitOwnerCount { get; set; }
+        [DataMember(Order = 14)] public int OwnerAnchorCount { get; set; }
+        [DataMember(Order = 15)] public int NestedOwnerBoundaryCount { get; set; }
     }
 }

@@ -41,7 +41,8 @@ namespace NavisLegacyPlugin.Services.ExternalSources
                 response.ExportSetName,  
                 response.ResolutionType,  
                 response.Items.AsReadOnly(),  
-                identities.ToList().AsReadOnly());  
+                identities.ToList().AsReadOnly(),
+                (response.OwnerGroups ?? new List<ExternalSourceRidOwnerGroup>()).AsReadOnly());
         }  
         public DataTable ToDataTable(ExternalSourcePopulation population)
         {

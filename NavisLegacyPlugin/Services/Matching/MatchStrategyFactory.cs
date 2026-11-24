@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using Autodesk.Navisworks.Api;
-
 namespace NavisLegacyPlugin.Services.Matching
 {
     /// <summary>
@@ -38,7 +37,6 @@ namespace NavisLegacyPlugin.Services.Matching
                         "GUID")
                 });
         }
-
         /// <summary>
         /// Creates the Item.GUID plus normalized filename strategy.
         ///
@@ -71,7 +69,6 @@ namespace NavisLegacyPlugin.Services.Matching
                         ReadTargetSourceFile(item))
                 });
         }
-
         /// <summary>
         /// Compatibility entry point retained for existing callers.
         ///
@@ -83,7 +80,6 @@ namespace NavisLegacyPlugin.Services.Matching
         {
             return ItemGuidAndFilename(priority);
         }
-
         /// <summary>
         /// Creates an IfcGuid-only matching strategy.
         ///
@@ -110,16 +106,28 @@ namespace NavisLegacyPlugin.Services.Matching
                         "IfcGuid")
                 });
         }
-
         /// <summary>
-        /// Creates an IfcGuid plus ModelItem DisplayName strategy.
-        /// Both components are required to construct a usable key.
+        /// Compatibility entry point for the configured composite IFC anchor.
+        ///
+        /// The stable second component is extracted from the final square-
+        /// bracketed segment of the ModelItem DisplayName. The method name is
+        /// retained so existing configuration and callers do not require a
+        /// coordinated enum or UI migration in this corrective drop.
         /// </summary>
         public static MatchStrategyDefinition IfcGuidAndDisplayName(
             int priority)
         {
+            return IfcGuidAndBracketedElementId(priority);
+        }
+        /// <summary>
+        /// Creates an IfcGuid plus bracketed elementId matching strategy.
+        /// Both components are required to construct a usable key.
+        /// </summary>
+        public static MatchStrategyDefinition IfcGuidAndBracketedElementId(
+            int priority)
+        {
             return new MatchStrategyDefinition(
-                "IfcGuid + DisplayName",
+                "IfcGuid + [elementId]",
                 priority,
                 true,
                 row => new[]
@@ -127,20 +135,20 @@ namespace NavisLegacyPlugin.Services.Matching
                     ReadSourcePropertyByName(
                         row,
                         "IfcGuid"),
-                    ReadSourceDisplayName(row)
+                    ExtractFinalBracketedValue(
+                        ReadSourceDisplayName(row))
                 },
                 item => new[]
                 {
                     ReadTargetPropertyByName(
                         item,
                         "IfcGuid"),
-                    NormalizeVariantString(
+                    ExtractFinalBracketedValue(
                         item == null
                             ? null
                             : item.DisplayName)
                 });
         }
-
         /// <summary>
         /// Reads the SOURCE filename using the existing supported
         /// Item property-name alternatives.
@@ -151,18 +159,15 @@ namespace NavisLegacyPlugin.Services.Matching
                 row,
                 "Item",
                 "Source File Name");
-
             if (!string.IsNullOrWhiteSpace(value))
             {
                 return value;
             }
-
             return ReadSourceProperty(
                 row,
                 "Item",
                 "Source File");
         }
-
         /// <summary>
         /// Reads the TARGET filename using the existing supported
         /// Item property-name alternatives.
@@ -173,18 +178,15 @@ namespace NavisLegacyPlugin.Services.Matching
                 item,
                 "Item",
                 "Source File Name");
-
             if (!string.IsNullOrWhiteSpace(value))
             {
                 return value;
             }
-
             return ReadTargetProperty(
                 item,
                 "Item",
                 "Source File");
         }
-
         /// <summary>
         /// Reads an explicitly qualified SOURCE property column.
         /// Expected column format is Category.Property.
@@ -201,12 +203,10 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return null;
             }
-
             string qualifiedName =
                 categoryName.Trim() +
                 "." +
                 propertyName.Trim();
-
             foreach (DataColumn column in row.Table.Columns)
             {
                 if (column == null ||
@@ -217,13 +217,10 @@ namespace NavisLegacyPlugin.Services.Matching
                 {
                     continue;
                 }
-
                 return NormalizeVariantString(row[column]);
             }
-
             return null;
         }
-
         /// <summary>
         /// Reads a SOURCE property by unqualified property name.
         ///
@@ -241,9 +238,7 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return null;
             }
-
             string requiredName = propertyName.Trim();
-
             foreach (DataColumn column in row.Table.Columns)
             {
                 if (column == null ||
@@ -254,16 +249,13 @@ namespace NavisLegacyPlugin.Services.Matching
                 {
                     continue;
                 }
-
                 string value =
                     NormalizeVariantString(row[column]);
-
                 if (!string.IsNullOrWhiteSpace(value))
                 {
                     return value;
                 }
             }
-
             foreach (DataColumn column in row.Table.Columns)
             {
                 if (column == null ||
@@ -273,19 +265,15 @@ namespace NavisLegacyPlugin.Services.Matching
                 {
                     continue;
                 }
-
                 string value =
                     NormalizeVariantString(row[column]);
-
                 if (!string.IsNullOrWhiteSpace(value))
                 {
                     return value;
                 }
             }
-
             return null;
         }
-
         /// <summary>
         /// Reads the transported SOURCE display name.
         ///
@@ -298,35 +286,68 @@ namespace NavisLegacyPlugin.Services.Matching
             string value = ReadSourceColumn(
                 row,
                 "DisplayName");
-
             if (!string.IsNullOrWhiteSpace(value))
             {
                 return value;
             }
-
             value = ReadSourceColumn(
                 row,
                 "Item.DisplayName");
-
             if (!string.IsNullOrWhiteSpace(value))
             {
                 return value;
             }
-
             value = ReadSourceColumn(
                 row,
                 "Item.Display Name");
-
             if (!string.IsNullOrWhiteSpace(value))
             {
                 return value;
             }
-
             return ReadSourceColumn(
                 row,
                 "Item.Name");
         }
-
+        /// <summary>
+        /// Extracts the final non-empty value enclosed in square brackets.
+        ///
+        /// The bracket pair must be the final non-whitespace content in the
+        /// DisplayName. Missing, unmatched or empty brackets produce no key.
+        /// </summary>
+        private static string ExtractFinalBracketedValue(
+            string displayName)
+        {
+            displayName = NormalizeVariantString(displayName);
+            if (displayName == null)
+            {
+                return null;
+            }
+            int closingBracket =
+                displayName.LastIndexOf(']');
+            if (closingBracket < 0 ||
+                !string.IsNullOrWhiteSpace(
+                    displayName.Substring(closingBracket + 1)))
+            {
+                return null;
+            }
+            int openingBracket =
+                displayName.LastIndexOf(
+                    '[',
+                    closingBracket);
+            if (openingBracket < 0 ||
+                openingBracket >= closingBracket - 1)
+            {
+                return null;
+            }
+            string value =
+                displayName.Substring(
+                    openingBracket + 1,
+                    closingBracket - openingBracket - 1)
+                    .Trim();
+            return string.IsNullOrWhiteSpace(value)
+                ? null
+                : value;
+        }
         /// <summary>
         /// Reads one SOURCE column using a case-insensitive column name.
         /// </summary>
@@ -340,7 +361,6 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return null;
             }
-
             foreach (DataColumn column in row.Table.Columns)
             {
                 if (column == null ||
@@ -351,13 +371,10 @@ namespace NavisLegacyPlugin.Services.Matching
                 {
                     continue;
                 }
-
                 return NormalizeVariantString(row[column]);
             }
-
             return null;
         }
-
         /// <summary>
         /// Reads a TARGET property from a specified category.
         /// </summary>
@@ -373,7 +390,6 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return null;
             }
-
             foreach (PropertyCategory category
                 in item.PropertyCategories)
             {
@@ -385,7 +401,6 @@ namespace NavisLegacyPlugin.Services.Matching
                 {
                     continue;
                 }
-
                 foreach (DataProperty property
                     in category.Properties)
                 {
@@ -396,14 +411,11 @@ namespace NavisLegacyPlugin.Services.Matching
                     {
                         continue;
                     }
-
                     return ReadTargetPropertyValue(property);
                 }
             }
-
             return null;
         }
-
         /// <summary>
         /// Reads a TARGET property by property name across every category.
         ///
@@ -420,7 +432,6 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return null;
             }
-
             foreach (PropertyCategory category
                 in item.PropertyCategories)
             {
@@ -429,31 +440,26 @@ namespace NavisLegacyPlugin.Services.Matching
                 {
                     continue;
                 }
-
                 foreach (DataProperty property
                     in category.Properties)
                 {
                     if (property == null ||
-                        !PropertyNameMatches(
+                        !PropertyDisplayNameMatches(
                             property,
                             propertyName))
                     {
                         continue;
                     }
-
                     string value =
                         ReadTargetPropertyValue(property);
-
                     if (!string.IsNullOrWhiteSpace(value))
                     {
                         return value;
                     }
                 }
             }
-
             return null;
         }
-
         /// <summary>
         /// Compares the requested category against both display and
         /// internal category names.
@@ -467,7 +473,6 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return false;
             }
-
             return string.Equals(
                        category.DisplayName,
                        categoryName,
@@ -477,7 +482,27 @@ namespace NavisLegacyPlugin.Services.Matching
                        categoryName,
                        StringComparison.OrdinalIgnoreCase);
         }
-
+        /// <summary>
+        /// Compares an unqualified requested property name against the
+        /// complete displayed property name only.
+        ///
+        /// This deliberately excludes properties such as "Type IfcGUID"
+        /// whose internal Navisworks name may also be "IfcGuid".
+        /// </summary>
+        private static bool PropertyDisplayNameMatches(
+            DataProperty property,
+            string propertyName)
+        {
+            if (property == null ||
+                string.IsNullOrWhiteSpace(propertyName))
+            {
+                return false;
+            }
+            return string.Equals(
+                (property.DisplayName ?? string.Empty).Trim(),
+                propertyName.Trim(),
+                StringComparison.OrdinalIgnoreCase);
+        }
         /// <summary>
         /// Compares the requested property against both display and
         /// internal property names.
@@ -491,7 +516,6 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return false;
             }
-
             return string.Equals(
                        property.DisplayName,
                        propertyName,
@@ -501,7 +525,6 @@ namespace NavisLegacyPlugin.Services.Matching
                        propertyName,
                        StringComparison.OrdinalIgnoreCase);
         }
-
         /// <summary>
         /// Safely converts a Navisworks property value into a normalized
         /// matching component.
@@ -514,7 +537,6 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return null;
             }
-
             try
             {
                 return NormalizeVariantString(
@@ -533,7 +555,6 @@ namespace NavisLegacyPlugin.Services.Matching
                 }
             }
         }
-
         /// <summary>
         /// Determines whether a qualified SOURCE column ends with the
         /// requested property name.
@@ -547,25 +568,20 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return false;
             }
-
             int separatorIndex =
                 columnName.LastIndexOf('.');
-
             if (separatorIndex < 0 ||
                 separatorIndex >= columnName.Length - 1)
             {
                 return false;
             }
-
             string unqualifiedName =
                 columnName.Substring(separatorIndex + 1);
-
             return string.Equals(
                 unqualifiedName,
                 propertyName,
                 StringComparison.OrdinalIgnoreCase);
         }
-
         /// <summary>
         /// Converts SOURCE or TARGET values into normalized strategy
         /// components. Final case normalization remains the responsibility
@@ -579,9 +595,7 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return null;
             }
-
             string text;
-
             try
             {
                 text = Convert.ToString(value);
@@ -590,24 +604,19 @@ namespace NavisLegacyPlugin.Services.Matching
             {
                 return null;
             }
-
             if (string.IsNullOrWhiteSpace(text))
             {
                 return null;
             }
-
             text = text.Trim();
-
             if (text.Length >= 2)
             {
                 bool doubleQuoted =
                     text[0] == '"' &&
                     text[text.Length - 1] == '"';
-
                 bool singleQuoted =
                     text[0] == '\'' &&
                     text[text.Length - 1] == '\'';
-
                 if (doubleQuoted || singleQuoted)
                 {
                     text = text
@@ -615,12 +624,10 @@ namespace NavisLegacyPlugin.Services.Matching
                         .Trim();
                 }
             }
-
             return string.IsNullOrWhiteSpace(text)
                 ? null
                 : text;
         }
-
         /// <summary>
         /// Normalizes a source-file value to filename-only comparison.
         ///
@@ -631,29 +638,23 @@ namespace NavisLegacyPlugin.Services.Matching
             string value)
         {
             value = NormalizeVariantString(value);
-
             if (value == null)
             {
                 return null;
             }
-
             string normalized =
                 value
                     .Replace('/', '\\')
                     .TrimEnd('\\');
-
             int separator =
                 normalized.LastIndexOf('\\');
-
             if (separator >= 0 &&
                 separator < normalized.Length - 1)
             {
                 normalized =
                     normalized.Substring(separator + 1);
             }
-
             normalized = normalized.Trim();
-
             return string.IsNullOrWhiteSpace(normalized)
                 ? null
                 : normalized;

@@ -217,6 +217,133 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             return response.Success ? 0 : -1;
         }
 
+        private static void PopulateExplicitOwnerGroups(
+              ExternalExportPopulationResponse response,
+              IEnumerable<ModelItem> boundaryItems)
+          {
+              List<ModelItem> population = (boundaryItems ?? Enumerable.Empty<ModelItem>())
+                  .Where(item => item != null)
+                  .ToList();
+              var boundary = new HashSet<ModelItem>(population);
+              List<ExternalSourceRidOwnerGroup> groups = population
+                  .Where(item => HasChildren(item))
+                  .Select(item => new { Item = item, Rid = ReadProperty(item, RidCategoryName, RidPropertyName) })
+                  .Where(value => IsTransferableRid(value.Rid))
+                  .Select(value => BuildExplicitOwnerGroup(value.Item, value.Rid, boundary))
+                  .ToList();
+              response.OwnerGroups = groups;
+              response.ExplicitOwnerCount = groups.Count;
+              response.OwnerAnchorCount = groups.Sum(group => group.Anchors.Count);
+              response.NestedOwnerBoundaryCount = groups.Sum(group => group.Boundaries.Count);
+          }
+
+          private static ExternalSourceRidOwnerGroup BuildExplicitOwnerGroup(
+              ModelItem owner,
+              string ownerRid,
+              ISet<ModelItem> boundary)
+          {
+              var group = new ExternalSourceRidOwnerGroup
+              {
+                  RidValue = ownerRid.Trim(),
+                  Owner = new ExternalSourceOwnerSnapshot
+                  {
+                      InstanceGuid = owner.InstanceGuid.ToString("D"),
+                      DisplayName = owner.DisplayName ?? string.Empty,
+                      ItemGuid = ReadProperty(owner, "Item", "GUID"),
+                      SourceFile = ReadSourceFile(owner),
+                      RidValue = ownerRid.Trim()
+                  }
+              };
+              CollectOwnerDescendants(owner, owner, ownerRid, 0, boundary, group);
+              return group;
+          }
+
+          private static void CollectOwnerDescendants(
+              ModelItem owner,
+              ModelItem current,
+              string ownerRid,
+              int depthFromOwner,
+              ISet<ModelItem> boundary,
+              ExternalSourceRidOwnerGroup group)
+          {
+              foreach (ModelItem child in current.Children)
+              {
+                  if (child == null || !boundary.Contains(child))
+                  {
+                      continue;
+                  }
+                  int childDepth = depthFromOwner + 1;
+                  bool childHasChildren = HasChildren(child);
+                  string childRid = ReadProperty(child, RidCategoryName, RidPropertyName);
+                  if (childHasChildren && IsTransferableRid(childRid))
+                  {
+                      group.Boundaries.Add(new ExternalSourceOwnershipBoundary
+                      {
+                          DepthFromOwner = childDepth,
+                          InstanceGuid = child.InstanceGuid.ToString("D"),
+                          DisplayName = child.DisplayName ?? string.Empty,
+                          RidValue = childRid.Trim(),
+                          SameRidAsOuterOwner = RidEquals(childRid, ownerRid)
+                      });
+                      // Any explicit RID-bearing child branch is an explicit owner
+                      // in its own right. The outer owner never consumes that subtree.
+                      continue;
+                  }
+                  if (!childHasChildren)
+                  {
+                      group.Anchors.Add(CreateOwnerAnchorSnapshot(child, owner, childDepth));
+                      continue;
+                  }
+                  CollectOwnerDescendants(owner, child, ownerRid, childDepth, boundary, group);
+              }
+          }
+
+          private static ExternalSourceAnchorSnapshot CreateOwnerAnchorSnapshot(
+              ModelItem anchor,
+              ModelItem owner,
+              int ownerDepthFromAnchor)
+          {
+              var result = new ExternalSourceAnchorSnapshot
+              {
+                  InstanceGuid = anchor.InstanceGuid.ToString("D"),
+                  DisplayName = anchor.DisplayName ?? string.Empty,
+                  OwnerDepthFromAnchor = ownerDepthFromAnchor
+              };
+              foreach (PropertyCategory category in anchor.PropertyCategories)
+              {
+                  foreach (DataProperty property in category.Properties)
+                  {
+                      result.Properties.Add(new ExternalPropertySnapshot
+                      {
+                          Category = category.DisplayName,
+                          Name = property.DisplayName,
+                          Value = SerializeVariantData(property.Value)
+                      });
+                  }
+              }
+              ModelItem current = anchor;
+              int depth = 0;
+              while (current != null)
+              {
+                  result.OwnerRelativePath.Add(new ExternalTopologyPathNodeSnapshot
+                  {
+                      DepthFromItem = depth,
+                      InstanceGuid = current.InstanceGuid.ToString("D"),
+                      DisplayName = current.DisplayName,
+                      ItemGuid = ReadProperty(current, "Item", "GUID"),
+                      SourceFile = ReadSourceFile(current),
+                      HasChildren = HasChildren(current)
+                  });
+                  if (object.ReferenceEquals(current, owner))
+                  {
+                      break;
+                  }
+                  current = current.Parent;
+                  depth++;
+              }
+              return result;
+          }
+
         private static ExternalModelItemSnapshot CreateSnapshot(ModelItem item)
         {
             var snapshot = new ExternalModelItemSnapshot
