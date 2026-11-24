@@ -11,7 +11,6 @@ using NavisLegacyPlugin.Models.ExternalSources;
 using NavisLegacyPlugin.Models.Topology;
 using NavisLegacyPlugin.Services.Collections;
 using NavisLegacyPlugin.Services.Matching;
-
 namespace NavisLegacyPlugin.Services.Topology
 {
     public sealed class ExternalTopologyOutcome
@@ -27,45 +26,38 @@ namespace NavisLegacyPlugin.Services.Topology
             Match = match;
             Resolution = resolution;
             Conflict = conflict;
-
             Operations = (
                 operations
                 ?? Enumerable.Empty<TransferOperationResult>())
                 .ToList()
                 .AsReadOnly();
         }
-
         public int RowIndex
         {
             get;
             private set;
         }
-
         public TransferMatchResult Match
         {
             get;
             private set;
         }
-
         public TopologyResolution Resolution
         {
             get;
             private set;
         }
-
         public bool Conflict
         {
             get;
             private set;
         }
-
         public IReadOnlyList<TransferOperationResult> Operations
         {
             get;
             private set;
         }
     }
-
     internal sealed class TargetSnapshot
     {
         public ModelItem Item
@@ -73,20 +65,17 @@ namespace NavisLegacyPlugin.Services.Topology
             get;
             set;
         }
-
         public string Key
         {
             get;
             set;
         }
-
         public TopologyItemFingerprint Fingerprint
         {
             get;
             set;
         }
     }
-
     internal sealed class AnchorRow
     {
         public int RowIndex
@@ -94,69 +83,72 @@ namespace NavisLegacyPlugin.Services.Topology
             get;
             set;
         }
-
         public ExternalModelItemSnapshot Snapshot
         {
             get;
             set;
         }
-
         public string Rid
         {
             get;
             set;
         }
-
         public MatchResolution Match
         {
             get;
             set;
         }
-
         public TransferMatchResult TransferMatch
         {
             get;
             set;
         }
-
         public List<TopologyPathNode> SourcePath
         {
             get;
             set;
         }
-
         public string RouteSignature
         {
             get;
             set;
         }
-
         public string AnchorDisplayName
         {
             get;
             set;
         }
-
         public string ImmediateChildBranch
         {
             get;
             set;
         }
+        public string OwnerGroupId
+        {
+            get;
+            set;
+        }
+        public int OwnerGroupIndex
+        {
+            get;
+            set;
+        }
+        public int OwnerGroupAnchorIndex
+        {
+            get;
+            set;
+        }
     }
-
     public sealed class ExternalTopologyTransferCoordinator
     {
         private const string RidPropertyName = "MAE-4D.RID";
-
         private const string RepresentativeSelectionRule =
             "Distinct immediate child branches, then distinct DisplayNames, " +
             "then distinct anchor keys, then evenly distributed SOURCE row order; " +
             "dissent always retained.";
-
         private readonly ComPropertyWriteService _writer;
         private readonly TopologyAlignmentSettings _settings;
         private readonly TopologyPathBuilder _paths;
-
         public ExternalTopologyTransferCoordinator(
             ComPropertyWriteService writer)
         {
@@ -164,13 +156,11 @@ namespace NavisLegacyPlugin.Services.Topology
             {
                 throw new ArgumentNullException("writer");
             }
-
             _writer = writer;
             _settings = new TopologyAlignmentSettings();
             _settings.Validate();
             _paths = new TopologyPathBuilder();
         }
-
         public IReadOnlyList<ExternalTopologyOutcome> Execute(
             ExternalSourcePopulation population,
             DataTable table,
@@ -184,108 +174,84 @@ namespace NavisLegacyPlugin.Services.Topology
             {
                 throw new ArgumentNullException("population");
             }
-
             if (table == null)
             {
                 throw new ArgumentNullException("table");
             }
-
             if (strategy == null)
             {
                 throw new ArgumentNullException("strategy");
             }
-
             Stopwatch stopwatch = Stopwatch.StartNew();
-
             List<ModelItem> targets = (
                 targetItems
                 ?? Enumerable.Empty<ModelItem>())
                 .Where(item => item != null)
                 .Distinct(ModelItemReferenceComparer.Instance)
                 .ToList();
-
             Log(
                 "TARGET population received",
                 stopwatch,
                 "items=" + targets.Count);
-
             progressText?.Report(
                 "Preparing TARGET identity cache...");
-
             List<ModelItem> targetAnchors = targets
                 .Where(item => !HasChildren(item))
                 .ToList();
-
             List<ModelItem> targetOwners = targets
                 .Where(HasChildren)
                 .ToList();
-
             var targetOwnerBoundary = new HashSet<ModelItem>(
                 targetOwners,
                 ModelItemReferenceComparer.Instance);
-
             Dictionary<string, List<TargetSnapshot>> targetIndex =
                 BuildTargetIndex(
                     targetAnchors,
                     strategy,
                     progressText,
                     progressPercent);
-
             Log(
                 "TARGET anchor index complete",
                 stopwatch,
                 "keys=" + targetIndex.Count
                 + "; targetLeaves=" + targetAnchors.Count
                 + "; targetBranches=" + targetOwners.Count);
-
             List<AnchorRow> anchorRows =
-                ResolveSourceAnchors(
+                ResolveOwnerGroupAnchors(
                     population,
                     table,
                     strategy,
                     targetIndex);
-
             Log(
-                "SOURCE anchors resolved",
+                "SOURCE owner-group anchors resolved",
                 stopwatch,
-                "anchors=" + anchorRows.Count);
-
+                "ownerGroups=" + population.OwnerGroups.Count
+                + "; anchors=" + anchorRows.Count);
             Log(
                 "SOURCE topology applicability assessed",
                 stopwatch,
                 "counts={" + BuildApplicabilitySummary(anchorRows) + "}");
-
             LogStructuralBranchEvidence(
                 anchorRows,
                 stopwatch);
-
             var analyses =
                 new List<TopologyGroupAnalysis>();
-
             var rowByAnalysis =
                 new Dictionary<TopologyGroupAnalysis, int>();
-
             var resultRows =
                 new Dictionary<int, ExternalTopologyOutcome>();
-
             List<IGrouping<string, AnchorRow>> validGroups =
                 anchorRows
                     .Where(IsTopologyApplicableMatchedAnchor)
                     .GroupBy(
-                        row =>
-                            OwnerKey(row)
-                            + "|"
-                            + row.RouteSignature,
+                        row => row.OwnerGroupId,
                         StringComparer.Ordinal)
                     .ToList();
-
             int groupNumber = 0;
-
             foreach (IGrouping<string, AnchorRow> group
                 in validGroups)
             {
                 groupNumber++;
-
                 ProcessValidRouteGroup(
                     group,
                     targets,
@@ -293,7 +259,6 @@ namespace NavisLegacyPlugin.Services.Topology
                     analyses,
                     rowByAnalysis,
                     resultRows);
-
                 YieldToDispatcher(
                     groupNumber,
                     validGroups.Count,
@@ -303,37 +268,19 @@ namespace NavisLegacyPlugin.Services.Topology
                     55,
                     25);
             }
-
             AddNotApplicableOutcomes(
                 anchorRows,
                 resultRows);
-
             AddUnresolvedAnchorOutcomes(
                 anchorRows,
                 resultRows);
-
             progressText?.Report(
-                "Reconciling topology mappings...");
-
-            TopologyReconciliationResult reconciliation =
-                new TopologyConflictReconciler()
-                    .Reconcile(analyses);
-
-            IReadOnlyList<TopologyWriteExecution> writes =
-                new TopologyBranchWriteExecutor(_writer)
-                    .Execute(
-                        reconciliation,
-                        targets,
-                        overwrite);
-
-            AddAnalysedOutcomes(
+                "Finalising owner-group topology analysis...");
+            AddAnalysisOnlyOutcomes(
                 anchorRows,
                 analyses,
                 rowByAnalysis,
-                reconciliation,
-                writes,
                 resultRows);
-
             Log(
                 "Topology outcome finalisation complete",
                 stopwatch,
@@ -341,16 +288,14 @@ namespace NavisLegacyPlugin.Services.Topology
                 + "; notApplicable=" + anchorRows.Count(row => !IsTopologyApplicable(row))
                 + "; branchOwnerGroups=" + analyses.Count
                 + "; outcomes=" + resultRows.Count
-                + "; leafWriteAttempts=0"
+                + "; writePlans=0; leafWriteAttempts=0"
                 + "; applicability={" + BuildApplicabilitySummary(anchorRows) + "}");
-
             return anchorRows
                 .OrderBy(row => row.RowIndex)
                 .Select(row => resultRows[row.RowIndex])
                 .ToList()
                 .AsReadOnly();
         }
-
         private Dictionary<string, List<TargetSnapshot>>
             BuildTargetIndex(
                 IReadOnlyList<ModelItem> targets,
@@ -361,42 +306,34 @@ namespace NavisLegacyPlugin.Services.Topology
             var index =
                 new Dictionary<string, List<TargetSnapshot>>(
                     StringComparer.Ordinal);
-
             for (int targetIndex = 0;
                 targetIndex < targets.Count;
                 targetIndex++)
             {
                 ModelItem target = targets[targetIndex];
-
                 string key = MatchKey.Create(
                     strategy.TargetKeySelector(target));
-
                 var snapshot = new TargetSnapshot
                 {
                     Item = target,
                     Key = key,
                     Fingerprint = _paths.CreateFingerprint(target)
                 };
-
                 if (key != null)
                 {
                     List<TargetSnapshot> matchingSnapshots;
-
                     if (!index.TryGetValue(
                         key,
                         out matchingSnapshots))
                     {
                         matchingSnapshots =
                             new List<TargetSnapshot>();
-
                         index.Add(
                             key,
                             matchingSnapshots);
                     }
-
                     matchingSnapshots.Add(snapshot);
                 }
-
                 YieldToDispatcher(
                     targetIndex + 1,
                     targets.Count,
@@ -406,75 +343,73 @@ namespace NavisLegacyPlugin.Services.Topology
                     35,
                     15);
             }
-
             return index;
         }
-
-        private List<AnchorRow> ResolveSourceAnchors(
+        private List<AnchorRow> ResolveOwnerGroupAnchors(
             ExternalSourcePopulation population,
             DataTable table,
             MatchStrategyDefinition strategy,
             IDictionary<string, List<TargetSnapshot>> targetIndex)
         {
             var rows = new List<AnchorRow>();
-
-            foreach (DataRow row in table.Rows)
+            IReadOnlyList<PreparedOwnerGroupAnchor> preparedAnchors =
+                OwnerGroupTopologyPreparation.Prepare(
+                    population.Items,
+                    population.OwnerGroups);
+            foreach (PreparedOwnerGroupAnchor prepared in preparedAnchors)
             {
-                int sourceRowIndex =
-                    Convert.ToInt32(
-                        row["__SourceRowIndex"],
-                        CultureInfo.InvariantCulture);
-
-                ExternalModelItemSnapshot sourceSnapshot =
-                    population.Items[sourceRowIndex];
-
+                if (prepared.SourceRowIndex < 0
+                    || prepared.SourceRowIndex >= table.Rows.Count)
+                {
+                    Debug.WriteLine(
+                        "[O02] SOURCE owner-group anchor could not be correlated; "
+                        + "group=" + prepared.GroupId
+                        + "; anchorIndex=" + prepared.AnchorIndex
+                        + "; instanceGuid=" + prepared.Snapshot.InstanceGuid
+                        + "; displayName=" + prepared.Snapshot.DisplayName);
+                    continue;
+                }
+                DataRow row = table.Rows[prepared.SourceRowIndex];
                 string key = MatchKey.Create(
                     strategy.SourceKeySelector(row));
-
                 List<TargetSnapshot> targetMatches = null;
-
                 if (key != null)
                 {
                     targetIndex.TryGetValue(
                         key,
                         out targetMatches);
                 }
-
                 MatchResolution match =
                     CreateMatchResolution(
                         strategy,
                         key,
                         targetMatches);
-
-                List<TopologyPathNode> sourcePath =
-                    ToPath(sourceSnapshot);
-
                 rows.Add(
                     new AnchorRow
                     {
-                        RowIndex = sourceRowIndex,
-                        Snapshot = sourceSnapshot,
-                        Rid = ReadColumn(
-                            row,
-                            RidPropertyName),
+                        RowIndex = prepared.SourceRowIndex,
+                        Snapshot = prepared.Snapshot,
+                        Rid = prepared.RidValue,
                         Match = match,
                         TransferMatch = ToTransferMatch(
                             match,
                             targetMatches),
-                        SourcePath = sourcePath,
+                        SourcePath = ToPath(prepared.Snapshot),
                         RouteSignature = BuildRouteSignature(
-                            sourceSnapshot),
-                        AnchorDisplayName = sourceSnapshot == null
-                            ? string.Empty
-                            : sourceSnapshot.DisplayName ?? string.Empty,
-                        ImmediateChildBranch = GetImmediateChildBranchName(
-                            sourceSnapshot)
+                            prepared.Snapshot),
+                        AnchorDisplayName =
+                            prepared.Snapshot.DisplayName
+                            ?? string.Empty,
+                        ImmediateChildBranch =
+                            GetImmediateChildBranchName(
+                                prepared.Snapshot),
+                        OwnerGroupId = prepared.GroupId,
+                        OwnerGroupIndex = prepared.OwnerGroupIndex,
+                        OwnerGroupAnchorIndex = prepared.AnchorIndex
                     });
             }
-
             return rows;
         }
-
         private static MatchResolution CreateMatchResolution(
             MatchStrategyDefinition strategy,
             string key,
@@ -489,7 +424,6 @@ namespace NavisLegacyPlugin.Services.Topology
                     null,
                     "SOURCE anchor key is incomplete.");
             }
-
             if (targetMatches == null
                 || targetMatches.Count == 0)
             {
@@ -500,7 +434,6 @@ namespace NavisLegacyPlugin.Services.Topology
                     key,
                     "No TARGET anchor matched.");
             }
-
             if (targetMatches.Count > 1)
             {
                 return new MatchResolution(
@@ -510,7 +443,6 @@ namespace NavisLegacyPlugin.Services.Topology
                     key,
                     "More than one TARGET anchor matched.");
             }
-
             return new MatchResolution(
                 MatchResolutionStatus.Matched,
                 targetMatches.First().Item,
@@ -518,7 +450,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 key,
                 "Matched unique TARGET anchor.");
         }
-
         private void ProcessValidRouteGroup(
             IGrouping<string, AnchorRow> group,
             IReadOnlyCollection<ModelItem> targets,
@@ -530,118 +461,112 @@ namespace NavisLegacyPlugin.Services.Topology
             List<AnchorRow> groupRows = group
                 .OrderBy(row => row.RowIndex)
                 .ToList();
-
-            List<IGrouping<ModelItem, AnchorRow>> rowsByMappedOwner = groupRows
-                .GroupBy(
-                    row => MapOwner(row.Match.Item, row.Snapshot),
-                    ModelItemReferenceComparer.Instance)
-                .Where(mappedGroup =>
-                    mappedGroup.Key != null
-                    && HasChildren(mappedGroup.Key)
-                    && targetOwnerBoundary.Contains(mappedGroup.Key))
-                .OrderByDescending(mappedGroup => mappedGroup.Count())
-                .ToList();
-
-            if (rowsByMappedOwner.Count == 0)
-            {
-                AnchorRow decisionRow = groupRows.First();
-                resultRows[decisionRow.RowIndex] = BuildNoMappedOwnerOutcome(decisionRow);
-
-                foreach (AnchorRow evidenceRow in groupRows.Skip(1))
-                {
-                    resultRows[evidenceRow.RowIndex] =
-                        BuildSupportingEvidenceOutcome(
-                            evidenceRow,
-                            "Supporting leaf evidence; no in-boundary TARGET branch owner was produced for the owner group.");
-                }
-
-                LogSaturation(groupRows, 0, 0, 0, 0,
-                    "No in-boundary TARGET branch owner was produced for the owner group.");
-                return;
-            }
-
-            IGrouping<ModelItem, AnchorRow> majorityGroup = rowsByMappedOwner.First();
-            List<AnchorRow> agreeingRows = majorityGroup
-                .OrderBy(row => row.RowIndex)
-                .ToList();
-            List<AnchorRow> dissentingRows = groupRows
-                .Where(row => !agreeingRows.Contains(row))
-                .OrderBy(row => row.RowIndex)
-                .ToList();
-
             List<AnchorRow> representativeRows = SelectRepresentatives(
-                agreeingRows,
+                groupRows,
                 _settings.MaximumRepresentativeAnchorsPerRoute);
-            List<AnchorRow> detailedRows = representativeRows
-                .Concat(dissentingRows)
-                .Distinct()
-                .OrderBy(row => row.RowIndex)
-                .ToList();
-
+            var preliminarySummary = new TopologyAnchorSummary(
+                groupRows.Count,
+                groupRows.Count,
+                groupRows.Count,
+                0,
+                0,
+                0,
+                0,
+                0,
+                representativeRows.Count,
+                _settings.MaximumRepresentativeAnchorsPerRoute,
+                RepresentativeSelectionRule);
+            var preliminaryAnalyses =
+                new Dictionary<AnchorRow, TopologyGroupAnalysis>();
+            foreach (AnchorRow anchorRow in representativeRows)
+            {
+                preliminaryAnalyses[anchorRow] = AnalyseAnchorRow(
+                    anchorRow,
+                    targets,
+                    targetOwnerBoundary,
+                    preliminarySummary,
+                    false);
+            }
+            OwnerGroupRouteConsensusResult consensus =
+                OwnerGroupRouteConsensus.Assess(
+                    representativeRows.Select(row =>
+                        preliminaryAnalyses[row]
+                            .Resolution
+                            .Candidates));
+            string majorityRoute = consensus.MajorityRoute;
+            int agreeingCount = consensus.AgreeingAnchorCount;
+            int dissentingCount = consensus.DissentingAnchorCount;
+            bool hasRouteDissent = consensus.HasRouteDissent;
             var anchorSummary = new TopologyAnchorSummary(
                 groupRows.Count,
                 groupRows.Count,
                 groupRows.Count,
                 0,
                 0,
-                agreeingRows.Count,
-                dissentingRows.Count,
-                1,
+                agreeingCount,
+                dissentingCount,
+                Math.Max(1, consensus.DistinctRouteCount),
                 representativeRows.Count,
                 _settings.MaximumRepresentativeAnchorsPerRoute,
                 RepresentativeSelectionRule);
-
             var detailedAnalyses = new List<TopologyGroupAnalysis>();
-            var detailedRowsByAnalysis = new Dictionary<TopologyGroupAnalysis, AnchorRow>();
-
-            foreach (AnchorRow anchorRow in detailedRows)
+            var detailedRowsByAnalysis =
+                new Dictionary<TopologyGroupAnalysis, AnchorRow>();
+            foreach (AnchorRow anchorRow in representativeRows)
             {
                 TopologyGroupAnalysis analysis = AnalyseAnchorRow(
                     anchorRow,
                     targets,
                     targetOwnerBoundary,
                     anchorSummary,
-                    dissentingRows.Count > 0);
+                    hasRouteDissent);
                 detailedAnalyses.Add(analysis);
                 detailedRowsByAnalysis[analysis] = anchorRow;
             }
-
             TopologyGroupAnalysis canonicalAnalysis = detailedAnalyses
-                .OrderByDescending(value => value.Resolution.BestScore)
+                .OrderByDescending(value =>
+                    string.Equals(
+                        OwnerGroupRouteConsensus.BestCandidateRouteKey(
+                            value.Resolution.Candidates),
+                        majorityRoute,
+                        StringComparison.Ordinal))
+                .ThenByDescending(value => value.Resolution.BestScore)
                 .ThenBy(value => detailedRowsByAnalysis[value].RowIndex)
                 .First();
-            AnchorRow canonicalRow = detailedRowsByAnalysis[canonicalAnalysis];
-
-            // One analysis, reconciliation source and write plan per distinct
-            // branch-owner/RID/route group. All other leaves remain evidence.
+            AnchorRow canonicalRow =
+                detailedRowsByAnalysis[canonicalAnalysis];
+            // O02 retains one analysis decision per explicit SOURCE owner group.
+            // All other descendant anchors remain supporting evidence.
             analyses.Add(canonicalAnalysis);
             rowByAnalysis[canonicalAnalysis] = canonicalRow.RowIndex;
-
             foreach (AnchorRow evidenceRow in groupRows)
             {
                 if (evidenceRow.RowIndex == canonicalRow.RowIndex)
                 {
                     continue;
                 }
-
-                resultRows[evidenceRow.RowIndex] = BuildSupportingEvidenceOutcome(
-                    evidenceRow,
-                    "Supporting leaf anchor evidence for branch-owner group "
-                    + canonicalAnalysis.Source.GroupId
-                    + "; the owner-group decision is retained on SOURCE row "
-                    + canonicalRow.RowIndex.ToString(CultureInfo.InvariantCulture)
-                    + ".");
+                resultRows[evidenceRow.RowIndex] =
+                    BuildSupportingEvidenceOutcome(
+                        evidenceRow,
+                        "Supporting leaf anchor evidence for explicit owner group "
+                        + canonicalAnalysis.Source.GroupId
+                        + "; the owner-group decision is retained on SOURCE row "
+                        + canonicalRow.RowIndex.ToString(
+                            CultureInfo.InvariantCulture)
+                        + ".");
             }
-
             LogSaturation(
                 groupRows,
-                agreeingRows.Count,
-                dissentingRows.Count,
+                agreeingCount,
+                dissentingCount,
                 representativeRows.Count,
-                detailedRows.Count,
-                "One canonical branch-owner analysis retained for reconciliation and mutation.");
+                detailedAnalyses.Count,
+                hasRouteDissent
+                    ? "Representative anchors proposed different scored TARGET branch routes; the owner-group result is Ambiguous."
+                    : consensus.DistinctRouteCount == 0
+                        ? "Representative anchors entered candidate analysis but produced no scored TARGET branch route."
+                        : "Representative anchors were analysed before owner-route classification; mutation remains disabled in O02.");
         }
-
         private ExternalTopologyOutcome BuildSupportingEvidenceOutcome(
             AnchorRow anchorRow,
             string reason)
@@ -663,7 +588,6 @@ namespace NavisLegacyPlugin.Services.Topology
                         string.Empty)
                 });
         }
-
         private ExternalTopologyOutcome BuildNoMappedOwnerOutcome(
             AnchorRow anchorRow)
         {
@@ -679,7 +603,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 0,
                 _settings.MaximumRepresentativeAnchorsPerRoute,
                 "No representative selected because no mapped TARGET owner exists.");
-
             var resolution = new TopologyResolution(
                 TopologyResolutionStatus.Unresolved,
                 "The matched TARGET anchor did not produce an in-boundary owner route.",
@@ -692,7 +615,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 anchorRow.SourcePath,
                 new TopologyCandidateEvidence[0],
                 summary);
-
             return new ExternalTopologyOutcome(
                 anchorRow.RowIndex,
                 anchorRow.TransferMatch,
@@ -700,7 +622,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 false,
                 new TransferOperationResult[0]);
         }
-
         private TopologyGroupAnalysis AnalyseAnchorRow(
             AnchorRow anchorRow,
             IReadOnlyCollection<ModelItem> targets,
@@ -710,30 +631,25 @@ namespace NavisLegacyPlugin.Services.Topology
         {
             TopologyItemFingerprint sourceOwner =
                 OwnerFingerprint(anchorRow);
-
             var anchorEvidence =
                 new[]
                 {
                     CreateAnchorEvidence(anchorRow)
                 };
-
             ModelItem candidateOwner =
                 MapOwner(
                     anchorRow.Match.Item,
                     anchorRow.Snapshot);
-
             List<ModelItem> candidateItems =
                 BuildCandidateNeighbourhood(
                     anchorRow.Match.Item,
                     anchorRow.Snapshot.RidOwnerDepthFromAnchor);
-
             var candidates =
                 new List<TopologyTargetCandidate>();
             int rejectedOutsideBoundary = 0;
             int maximumNodes = Math.Max(
                 1,
                 anchorRow.SourcePath.Count + 1);
-
             foreach (ModelItem candidateItem in candidateItems)
             {
                 if (!HasChildren(candidateItem)
@@ -745,7 +661,6 @@ namespace NavisLegacyPlugin.Services.Topology
                     rejectedOutsideBoundary++;
                     continue;
                 }
-
                 candidates.Add(
                     new TopologyTargetCandidate(
                         candidateItem,
@@ -754,18 +669,15 @@ namespace NavisLegacyPlugin.Services.Topology
                             anchorRow.Match.Item,
                             maximumNodes)));
             }
-
             bool referenceContains = candidateOwner != null
                 && targets.Contains(
                     candidateOwner,
                     ModelItemReferenceComparer.Instance);
-
             int fingerprintMatches = candidateOwner == null
                 ? 0
                 : targets.Count(target => FingerprintsEqual(
                     _paths.CreateFingerprint(target),
                     _paths.CreateFingerprint(candidateOwner)));
-
             LogCandidateMapping(
                 anchorRow,
                 sourceOwner,
@@ -777,23 +689,19 @@ namespace NavisLegacyPlugin.Services.Topology
                 candidateItems.Count);
             var sourceGroup =
                 new TopologySourceGroup(
-                    anchorRow.RowIndex.ToString(
-                        CultureInfo.InvariantCulture),
+                    anchorRow.OwnerGroupId,
                     anchorRow.Rid,
                     sourceOwner,
                     anchorRow.SourcePath,
                     anchorEvidence,
                     anchorRow.Snapshot.RidOwnerDepthFromAnchor);
-
             TopologyGroupAnalysis initialAnalysis =
                 new TopologyAnalysisService(_settings)
                     .Analyse(
                         sourceGroup,
                         candidates);
-
             TopologyResolution initialResolution =
                 initialAnalysis.Resolution;
-
             var resolution =
                 new TopologyResolution(
                     initialResolution.Status,
@@ -807,10 +715,8 @@ namespace NavisLegacyPlugin.Services.Topology
                     initialResolution.SourcePath,
                     initialResolution.Candidates,
                     anchorSummary);
-
             TopologyTargetCandidate selectedCandidate =
                 initialAnalysis.SelectedCandidate;
-
             if (hasDissent)
             {
                 resolution =
@@ -826,16 +732,13 @@ namespace NavisLegacyPlugin.Services.Topology
                         initialResolution.SourcePath,
                         initialResolution.Candidates,
                         anchorSummary);
-
                 selectedCandidate = null;
             }
-
             return new TopologyGroupAnalysis(
                 sourceGroup,
                 resolution,
                 selectedCandidate);
         }
-
         private static void AddSaturatedOutcomes(
             IEnumerable<AnchorRow> agreeingRows,
             IEnumerable<AnchorRow> representativeRows,
@@ -845,7 +748,6 @@ namespace NavisLegacyPlugin.Services.Topology
             HashSet<AnchorRow> representatives =
                 new HashSet<AnchorRow>(
                     representativeRows);
-
             foreach (AnchorRow saturatedRow
                 in agreeingRows.Where(
                     row => !representatives.Contains(row)))
@@ -857,12 +759,10 @@ namespace NavisLegacyPlugin.Services.Topology
                                 analysis.Source.RidValue,
                                 saturatedRow.Rid,
                                 StringComparison.OrdinalIgnoreCase));
-
                 if (representativeAnalysis == null)
                 {
                     continue;
                 }
-
                 resultRows[saturatedRow.RowIndex] =
                     new ExternalTopologyOutcome(
                         saturatedRow.RowIndex,
@@ -872,7 +772,6 @@ namespace NavisLegacyPlugin.Services.Topology
                         new TransferOperationResult[0]);
             }
         }
-
         private void AddUnresolvedAnchorOutcomes(
             IEnumerable<AnchorRow> anchorRows,
             IDictionary<int, ExternalTopologyOutcome> resultRows)
@@ -885,13 +784,11 @@ namespace NavisLegacyPlugin.Services.Topology
                 {
                     CreateAnchorEvidence(anchorRow)
                 };
-
                 TopologyResolutionStatus status =
                     anchorRow.Match.Status
                         == MatchResolutionStatus.Ambiguous
                         ? TopologyResolutionStatus.Ambiguous
                         : TopologyResolutionStatus.Unresolved;
-
                 var anchorSummary =
                     new TopologyAnchorSummary(
                         1,
@@ -918,7 +815,6 @@ namespace NavisLegacyPlugin.Services.Topology
                         _settings
                             .MaximumRepresentativeAnchorsPerRoute,
                         "No representative alignment for unresolved anchor.");
-
                 var resolution =
                     new TopologyResolution(
                         status,
@@ -932,7 +828,6 @@ namespace NavisLegacyPlugin.Services.Topology
                         anchorRow.SourcePath,
                         new TopologyCandidateEvidence[0],
                         anchorSummary);
-
                 resultRows[anchorRow.RowIndex] =
                     new ExternalTopologyOutcome(
                         anchorRow.RowIndex,
@@ -942,73 +837,36 @@ namespace NavisLegacyPlugin.Services.Topology
                         new TransferOperationResult[0]);
             }
         }
-
-        private static void AddAnalysedOutcomes(
+        private static void AddAnalysisOnlyOutcomes(
             IReadOnlyCollection<AnchorRow> anchorRows,
             IEnumerable<TopologyGroupAnalysis> analyses,
             IDictionary<TopologyGroupAnalysis, int> rowByAnalysis,
-            TopologyReconciliationResult reconciliation,
-            IEnumerable<TopologyWriteExecution> writes,
             IDictionary<int, ExternalTopologyOutcome> resultRows)
         {
-            List<TopologyWriteExecution> writeResults =
-                (
-                    writes
-                    ?? Enumerable.Empty<TopologyWriteExecution>())
-                    .ToList();
-
             foreach (TopologyGroupAnalysis analysis in analyses)
             {
-                int rowIndex =
-                    rowByAnalysis[analysis];
-
-                bool conflict =
-                    reconciliation.Blocked.Contains(analysis)
-                    && analysis.Resolution.Status
-                        == TopologyResolutionStatus.Good
-                    && analysis.SelectedCandidate != null;
-
-                var operations =
-                    new List<TransferOperationResult>();
-
-                TopologyWritePlan plan =
-                    reconciliation.Plans.FirstOrDefault(
-                        currentPlan =>
-                            currentPlan.Sources.Contains(analysis));
-
-                TopologyWriteExecution write =
-                    plan == null
-                        ? null
-                        : writeResults.FirstOrDefault(
-                            result => result.Plan == plan);
-
-                if (write != null)
-                {
-                    operations.Add(
-                        new TransferOperationResult(
-                            write.Status,
-                            "PropertyWrite",
-                            "MAE-4D",
-                            "RID",
-                            analysis.Source.RidValue,
-                            write.Reason,
-                            write.Error));
-                }
-
-                AnchorRow sourceRow =
-                    anchorRows.First(
-                        row => row.RowIndex == rowIndex);
-
+                int rowIndex = rowByAnalysis[analysis];
+                AnchorRow sourceRow = anchorRows.First(
+                    row => row.RowIndex == rowIndex);
                 resultRows[rowIndex] =
                     new ExternalTopologyOutcome(
                         rowIndex,
                         sourceRow.TransferMatch,
                         analysis.Resolution,
-                        conflict,
-                        operations);
+                        false,
+                        new[]
+                        {
+                            new TransferOperationResult(
+                                TransferOperationStatus.NotApplicable,
+                                "TopologyAnalysisOnly",
+                                "MAE-4D",
+                                "RID",
+                                analysis.Source.RidValue,
+                                "O02 performs owner-group topology analysis only; mutation is disabled.",
+                                string.Empty)
+                        });
             }
         }
-
         private static bool IsTopologyApplicableMatchedAnchor(
             AnchorRow row)
         {
@@ -1016,12 +874,10 @@ namespace NavisLegacyPlugin.Services.Topology
                 && row.Match != null
                 && row.Match.Status == MatchResolutionStatus.Matched;
         }
-
         private static bool IsTopologyApplicable(AnchorRow row)
         {
             return AssessTopologyApplicability(row).IsApplicable;
         }
-
         private static TopologyApplicabilityAssessment AssessTopologyApplicability(
             AnchorRow row)
         {
@@ -1032,13 +888,11 @@ namespace NavisLegacyPlugin.Services.Topology
                     TopologyApplicabilityReasonCode.OwnerNotResolved,
                     "The SOURCE topology row or snapshot is missing.");
             }
-
             string anchorKey = row.Match == null
                 ? string.Empty
                 : row.Match.Key;
             bool ownerHasChildren = row.Snapshot.RidOwner != null
                 && row.Snapshot.RidOwner.HasChildren;
-
             return TopologyApplicabilityRules.Assess(
                 row.Snapshot.HasChildren,
                 row.Snapshot.HasRidOwner,
@@ -1047,22 +901,18 @@ namespace NavisLegacyPlugin.Services.Topology
                 row.Rid,
                 anchorKey);
         }
-
         private static bool HasChildren(ModelItem item)
         {
             if (item == null)
             {
                 return false;
             }
-
             foreach (ModelItem child in item.Children)
             {
                 return true;
             }
-
             return false;
         }
-
         private static void AddNotApplicableOutcomes(
             IEnumerable<AnchorRow> anchorRows,
             IDictionary<int, ExternalTopologyOutcome> resultRows)
@@ -1087,8 +937,6 @@ namespace NavisLegacyPlugin.Services.Topology
                     });
             }
         }
-
-
         private static string BuildTopologyEligibilityReason(AnchorRow row)
         {
             TopologyApplicabilityAssessment assessment =
@@ -1107,7 +955,6 @@ namespace NavisLegacyPlugin.Services.Topology
             int recoveredDepth = row == null || row.Snapshot == null
                 ? -1
                 : row.Snapshot.RecoveredRidOwnerDepthFromAnchor;
-
             return "[" + assessment.ReasonCode + "] "
                 + assessment.Reason
                 + " WorkerStatus=" + workerStatus
@@ -1116,7 +963,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 + "; RecoveredDepth="
                 + recoveredDepth.ToString(CultureInfo.InvariantCulture);
         }
-
         private static string BuildApplicabilitySummary(
             IEnumerable<AnchorRow> rows)
         {
@@ -1125,7 +971,6 @@ namespace NavisLegacyPlugin.Services.Topology
                     .GroupBy(row => AssessTopologyApplicability(row).ReasonCode)
                     .OrderBy(group => group.Key.ToString())
                     .ToList();
-
             string applicability = string.Join(
                 "; ",
                 groups.Select(group => group.Key + "=" + group.Count()));
@@ -1137,10 +982,8 @@ namespace NavisLegacyPlugin.Services.Topology
                         : row.Snapshot.RidOwnerEvidenceStatus)
                     .OrderBy(group => group.Key.ToString())
                     .Select(group => group.Key + "=" + group.Count()));
-
             return applicability + "}; recoveredOwnerStatus={" + recovered;
         }
-
         private static List<AnchorRow> SelectRepresentatives(
             List<AnchorRow> availableRows,
             int maximumRepresentatives)
@@ -1149,23 +992,19 @@ namespace NavisLegacyPlugin.Services.Topology
             {
                 return new List<AnchorRow>();
             }
-
             List<AnchorRow> ordered = availableRows
                 .Where(row => row != null)
                 .OrderBy(row => row.RowIndex)
                 .ToList();
-
             if (ordered.Count <= maximumRepresentatives)
             {
                 return ordered;
             }
-
             var selected = new List<AnchorRow>();
             var selectedSet = new HashSet<AnchorRow>();
             var childBranches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var displayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var anchorKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
             // 1. Prefer distinct immediate child branches beneath the owner.
             AddDistinctBy(
                 ordered,
@@ -1174,7 +1013,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 childBranches,
                 selected,
                 selectedSet);
-
             // 2. Then prefer distinct anchor DisplayNames.
             AddDistinctBy(
                 ordered,
@@ -1183,7 +1021,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 displayNames,
                 selected,
                 selectedSet);
-
             // 3. Then prefer distinct normalized anchor keys.
             AddDistinctBy(
                 ordered,
@@ -1192,13 +1029,11 @@ namespace NavisLegacyPlugin.Services.Topology
                 anchorKeys,
                 selected,
                 selectedSet);
-
             // 4. Fill the remaining positions deterministically using evenly
             // distributed rows from the as-yet-unselected population.
             List<AnchorRow> remaining = ordered
                 .Where(row => !selectedSet.Contains(row))
                 .ToList();
-
             int positions = maximumRepresentatives - selected.Count;
             if (positions > 0 && remaining.Count > 0)
             {
@@ -1212,13 +1047,11 @@ namespace NavisLegacyPlugin.Services.Topology
                     }
                 }
             }
-
             return selected
                 .OrderBy(row => row.RowIndex)
                 .Take(maximumRepresentatives)
                 .ToList();
         }
-
         private static void AddDistinctBy(
             IEnumerable<AnchorRow> ordered,
             int maximumRepresentatives,
@@ -1233,24 +1066,20 @@ namespace NavisLegacyPlugin.Services.Topology
                 {
                     return;
                 }
-
                 if (selectedSet.Contains(row))
                 {
                     continue;
                 }
-
                 string value = NormalizeName(selector(row));
                 if (string.IsNullOrWhiteSpace(value)
                     || !seenValues.Add(value))
                 {
                     continue;
                 }
-
                 selected.Add(row);
                 selectedSet.Add(row);
             }
         }
-
         private static IEnumerable<AnchorRow> EvenlyDistributed(
             IReadOnlyList<AnchorRow> rows,
             int required)
@@ -1259,7 +1088,6 @@ namespace NavisLegacyPlugin.Services.Topology
             {
                 yield break;
             }
-
             if (required >= rows.Count)
             {
                 foreach (AnchorRow row in rows)
@@ -1268,13 +1096,11 @@ namespace NavisLegacyPlugin.Services.Topology
                 }
                 yield break;
             }
-
             if (required == 1)
             {
                 yield return rows[rows.Count / 2];
                 yield break;
             }
-
             var indexes = new HashSet<int>();
             for (int index = 0; index < required; index++)
             {
@@ -1282,13 +1108,11 @@ namespace NavisLegacyPlugin.Services.Topology
                     index * (rows.Count - 1d) / (required - 1d));
                 indexes.Add(sourceIndex);
             }
-
             foreach (int index in indexes.OrderBy(value => value))
             {
                 yield return rows[index];
             }
         }
-
         private ModelItem MapOwner(
             ModelItem targetAnchor,
             ExternalModelItemSnapshot sourceSnapshot)
@@ -1298,12 +1122,10 @@ namespace NavisLegacyPlugin.Services.Topology
             {
                 return null;
             }
-
             return _paths.GetAncestorAtDepth(
                 targetAnchor,
                 sourceSnapshot.RidOwnerDepthFromAnchor);
         }
-
         private List<ModelItem> BuildCandidateNeighbourhood(
             ModelItem targetAnchor,
             int expectedOwnerDepth)
@@ -1311,34 +1133,28 @@ namespace NavisLegacyPlugin.Services.Topology
             var candidates = new List<ModelItem>();
             var seen = new HashSet<ModelItem>(
                 ModelItemReferenceComparer.Instance);
-
             int[] depths =
             {
                 expectedOwnerDepth,
                 expectedOwnerDepth - 1,
                 expectedOwnerDepth + 1
             };
-
             foreach (int depth in depths)
             {
                 if (depth < 0)
                 {
                     continue;
                 }
-
                 ModelItem item = _paths.GetAncestorAtDepth(
                     targetAnchor,
                     depth);
-
                 if (item != null && HasChildren(item) && seen.Add(item))
                 {
                     candidates.Add(item);
                 }
             }
-
             return candidates;
         }
-
         private static bool HasValidOwnerEvidence(
             ExternalModelItemSnapshot snapshot)
         {
@@ -1347,7 +1163,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 && snapshot.RidOwner != null
                 && snapshot.RidOwnerDepthFromAnchor >= 0;
         }
-
         private static string BuildRouteSignature(
             ExternalModelItemSnapshot snapshot)
         {
@@ -1355,7 +1170,6 @@ namespace NavisLegacyPlugin.Services.Topology
             {
                 return "NO-RID-OWNER";
             }
-
             IEnumerable<ExternalTopologyPathNodeSnapshot> route =
                 (snapshot.TopologyPath
                     ?? new List<ExternalTopologyPathNodeSnapshot>())
@@ -1363,27 +1177,23 @@ namespace NavisLegacyPlugin.Services.Topology
                     node != null
                     && node.DepthFromItem > 0
                     && node.DepthFromItem < snapshot.RidOwnerDepthFromAnchor);
-
             string sequence = string.Join(
                 ">",
                 route.Select(node =>
                     NormalizeName(node.DisplayName)
                     + (node.HasChildren ? "#B" : "#L"))
                     .ToArray());
-
             return snapshot.RidOwnerDepthFromAnchor
                 .ToString(CultureInfo.InvariantCulture)
                 + "|"
                 + sequence;
         }
-
         private static string NormalizeName(string value)
         {
             return (value ?? string.Empty)
                 .Trim()
                 .ToUpperInvariant();
         }
-
         private static string GetImmediateChildBranchName(
             ExternalModelItemSnapshot snapshot)
         {
@@ -1392,7 +1202,6 @@ namespace NavisLegacyPlugin.Services.Topology
             {
                 return string.Empty;
             }
-
             int childDepth = snapshot.RidOwnerDepthFromAnchor - 1;
             ExternalTopologyPathNodeSnapshot child =
                 (snapshot.TopologyPath
@@ -1400,7 +1209,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 .FirstOrDefault(node =>
                     node != null
                     && node.DepthFromItem == childDepth);
-
             return child == null
                 ? string.Empty
                 : child.DisplayName ?? string.Empty;
@@ -1410,7 +1218,6 @@ namespace NavisLegacyPlugin.Services.Topology
         {
             TopologyItemFingerprint owner =
                 OwnerFingerprint(anchorRow);
-
             return (
                 owner.InstanceGuid
                 + "|"
@@ -1421,7 +1228,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 + owner.DisplayName)
                 .ToUpperInvariant();
         }
-
         private static TopologyItemFingerprint OwnerFingerprint(
             AnchorRow anchorRow)
         {
@@ -1429,13 +1235,11 @@ namespace NavisLegacyPlugin.Services.Topology
                 anchorRow == null || anchorRow.Snapshot == null
                     ? null
                     : anchorRow.Snapshot.RidOwner;
-
             if (ownerNode == null)
             {
                 return CreateSourceFingerprint(
                     anchorRow == null ? null : anchorRow.Snapshot);
             }
-
             return new TopologyItemFingerprint(
                 ownerNode.InstanceGuid,
                 ownerNode.ItemGuid,
@@ -1458,7 +1262,6 @@ namespace NavisLegacyPlugin.Services.Topology
                     : _paths.CreateFingerprint(
                         anchorRow.Match.Item));
         }
-
         private static List<TopologyPathNode> ToPath(
             ExternalModelItemSnapshot snapshot)
         {
@@ -1470,7 +1273,6 @@ namespace NavisLegacyPlugin.Services.Topology
                             ? snapshot.TopologyPath
                             : snapshot.AncestorPath
                                 ?? new List<ExternalTopologyPathNodeSnapshot>();
-
             return path
                 .Where(node => node != null)
                 .OrderBy(node => node.DepthFromItem)
@@ -1485,7 +1287,6 @@ namespace NavisLegacyPlugin.Services.Topology
                             node.DisplayName)))
                 .ToList();
         }
-
         private static bool FingerprintsEqual(
             TopologyItemFingerprint first,
             TopologyItemFingerprint second)
@@ -1494,13 +1295,11 @@ namespace NavisLegacyPlugin.Services.Topology
             {
                 return false;
             }
-
             return string.Equals(first.InstanceGuid, second.InstanceGuid, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(first.ItemGuid, second.ItemGuid, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(first.SourceFile, second.SourceFile, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(first.DisplayName, second.DisplayName, StringComparison.OrdinalIgnoreCase);
         }
-
         private static void LogCandidateMapping(
             AnchorRow anchorRow,
             TopologyItemFingerprint sourceOwner,
@@ -1516,7 +1315,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 : targetOwner.InstanceGuid.ToString("D")
                     + "|"
                     + (targetOwner.DisplayName ?? string.Empty);
-
             Logger.Info(
                 "[C-C1 M05-M06] row="
                 + anchorRow.RowIndex
@@ -1552,7 +1350,6 @@ namespace NavisLegacyPlugin.Services.Topology
             AnchorRow first = groupRows == null
                 ? null
                 : groupRows.OrderBy(row => row.RowIndex).FirstOrDefault();
-
             Logger.Info(
                 "[C-C1 M07] owner="
                 + (first == null ? string.Empty : OwnerKey(first))
@@ -1572,7 +1369,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 + (reason ?? string.Empty)
                 + ".");
         }
-
         private static void LogStructuralBranchEvidence(
             IEnumerable<AnchorRow> rows,
             Stopwatch stopwatch)
@@ -1582,7 +1378,6 @@ namespace NavisLegacyPlugin.Services.Topology
             StructuralOwnerSelectionResult selectionResult =
                 StructuralBranchEvidenceAnalyzer.AnalyseAndSelect(evidence);
             IReadOnlyList<StructuralBranchCluster> clusters = selectionResult.Clusters;
-
             int singleRidClusters = clusters.Count(value => value.IsHomogeneous);
             int selectedOwnerBranches = selectionResult.Selections
                 .Select(value => value.BranchKey)
@@ -1590,7 +1385,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 .Count();
             int mixedRidClusters = clusters.Count(value =>
                 value.DistinctLeafRidCount > 1);
-
             Log(
                 "SOURCE structural branch evidence",
                 stopwatch,
@@ -1622,12 +1416,10 @@ namespace NavisLegacyPlugin.Services.Topology
                         + ", rids=[" + string.Join(",", cluster.LeafRids.Take(5)) + "]"))
                 + "}");
         }
-
         private static List<StructuralBranchEvidenceRow>
             BuildStructuralBranchEvidence(IEnumerable<AnchorRow> rows)
         {
             var result = new List<StructuralBranchEvidenceRow>();
-
             foreach (AnchorRow row in rows ?? Enumerable.Empty<AnchorRow>())
             {
                 if (row == null
@@ -1638,7 +1430,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 {
                     continue;
                 }
-
                 foreach (ExternalTopologyPathNodeSnapshot node in
                     row.Snapshot.AncestorPath
                         ?? new List<ExternalTopologyPathNodeSnapshot>())
@@ -1649,12 +1440,10 @@ namespace NavisLegacyPlugin.Services.Topology
                     {
                         continue;
                     }
-
                     string branchKey = BuildStructuralBranchKey(node);
                     string branchRid = GetSnapshotPathNodeRid(
                         row.Snapshot,
                         node.DepthFromItem);
-
                     result.Add(
                         new StructuralBranchEvidenceRow(
                             row.RowIndex,
@@ -1665,10 +1454,8 @@ namespace NavisLegacyPlugin.Services.Topology
                             branchRid));
                 }
             }
-
             return result;
         }
-
         private static string BuildStructuralBranchKey(
             ExternalTopologyPathNodeSnapshot node)
         {
@@ -1683,7 +1470,6 @@ namespace NavisLegacyPlugin.Services.Topology
                     node.DepthFromItem.ToString(CultureInfo.InvariantCulture)
                 }).ToUpperInvariant();
         }
-
         private static string GetSnapshotPathNodeRid(
             ExternalModelItemSnapshot snapshot,
             int depthFromAnchor)
@@ -1694,7 +1480,6 @@ namespace NavisLegacyPlugin.Services.Topology
             // than inventing evidence. T04-C tests structural clustering first.
             return string.Empty;
         }
-
         private static void YieldToDispatcher(
             int current,
             int total,
@@ -1708,12 +1493,10 @@ namespace NavisLegacyPlugin.Services.Topology
                 current == 1
                 || current == total
                 || current % 25 == 0;
-
             if (!shouldReport)
             {
                 return;
             }
-
             progressText?.Report(
                 label
                 + " "
@@ -1721,16 +1504,13 @@ namespace NavisLegacyPlugin.Services.Topology
                 + "/"
                 + total
                 + "...");
-
             int progressValue =
                 progressStart
                 + (
                     total == 0
                         ? 0
                         : current * progressSpan / total);
-
             progressPercent?.Report(progressValue);
-
             if (System.Windows.Application.Current != null)
             {
                 System.Windows.Application.Current.Dispatcher.Invoke(
@@ -1738,7 +1518,6 @@ namespace NavisLegacyPlugin.Services.Topology
                     DispatcherPriority.Background);
             }
         }
-
         private static void Log(
             string stage,
             Stopwatch stopwatch,
@@ -1753,7 +1532,6 @@ namespace NavisLegacyPlugin.Services.Topology
                 + stopwatch.ElapsedMilliseconds
                 + ".");
         }
-
         private static string ReadColumn(
             DataRow row,
             string columnName)
@@ -1765,13 +1543,11 @@ namespace NavisLegacyPlugin.Services.Topology
             {
                 return string.Empty;
             }
-
             return Convert.ToString(
                        row[columnName],
                        CultureInfo.InvariantCulture)
                    ?? string.Empty;
         }
-
         private static TopologyItemFingerprint
             CreateSourceFingerprint(
                 ExternalModelItemSnapshot snapshot)
@@ -1784,19 +1560,16 @@ namespace NavisLegacyPlugin.Services.Topology
                     string.Empty,
                     string.Empty);
             }
-
             string itemGuid =
                 GetSnapshotProperty(
                     snapshot,
                     "Item",
                     "GUID");
-
             string sourceFile =
                 GetSnapshotProperty(
                     snapshot,
                     "Item",
                     "Source File Name");
-
             if (string.IsNullOrWhiteSpace(sourceFile))
             {
                 sourceFile =
@@ -1805,14 +1578,12 @@ namespace NavisLegacyPlugin.Services.Topology
                         "Item",
                         "Source File");
             }
-
             return new TopologyItemFingerprint(
                 snapshot.InstanceGuid,
                 itemGuid,
                 sourceFile,
                 snapshot.DisplayName);
         }
-
         private static string GetSnapshotProperty(
             ExternalModelItemSnapshot snapshot,
             string categoryName,
@@ -1833,12 +1604,10 @@ namespace NavisLegacyPlugin.Services.Topology
                                 candidate.Name,
                                 propertyName,
                                 StringComparison.OrdinalIgnoreCase));
-
             return property == null
                 ? string.Empty
                 : property.Value ?? string.Empty;
         }
-
         private static TopologyAnchorStatus
             ToTopologyAnchorStatus(
                 MatchResolutionStatus status)
@@ -1847,49 +1616,39 @@ namespace NavisLegacyPlugin.Services.Topology
             {
                 case MatchResolutionStatus.Matched:
                     return TopologyAnchorStatus.Matched;
-
                 case MatchResolutionStatus.Ambiguous:
                     return TopologyAnchorStatus.Ambiguous;
-
                 case MatchResolutionStatus.MissingKey:
                     return TopologyAnchorStatus.MissingKey;
-
                 default:
                     return TopologyAnchorStatus.Unmatched;
             }
         }
-
         private static TransferMatchResult ToTransferMatch(
             MatchResolution match,
             IReadOnlyCollection<TargetSnapshot> targetMatches)
         {
             TransferMatchStatus status;
-
             switch (match.Status)
             {
                 case MatchResolutionStatus.Matched:
                     status = TransferMatchStatus.Matched;
                     break;
-
                 case MatchResolutionStatus.Ambiguous:
                     status = TransferMatchStatus.Ambiguous;
                     break;
-
                 case MatchResolutionStatus.MissingKey:
                     status = TransferMatchStatus.MissingKey;
                     break;
-
                 default:
                     status = TransferMatchStatus.Unmatched;
                     break;
             }
-
             TopologyItemFingerprint fingerprint =
                 targetMatches != null
                 && targetMatches.Count == 1
                     ? targetMatches.First().Fingerprint
                     : null;
-
             TransferTargetFingerprint transferFingerprint =
                 fingerprint == null
                     ? null
@@ -1898,7 +1657,6 @@ namespace NavisLegacyPlugin.Services.Topology
                         fingerprint.ItemGuid,
                         fingerprint.SourceFile,
                         fingerprint.DisplayName);
-
             return new TransferMatchResult(
                 status,
                 match.StrategyName,

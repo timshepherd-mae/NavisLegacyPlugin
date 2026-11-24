@@ -11,7 +11,6 @@ using NavisLegacyPlugin.Models.Collections;
 using NavisLegacyPlugin.Models.ExternalSources;
 using NavisLegacyPlugin.Services.Collections;
 using NavisLegacyPlugin.Services.Topology;
-
 namespace NavisLegacyPlugin.Commands.ExternalSources
 {
     [Plugin(
@@ -23,7 +22,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
         private const string RidCategoryName = "MAE-4D";
         private const string RidPropertyName = "RID";
         private const int ContextNodesAboveOwner = 2;
-
         public override int Execute(params string[] parameters)
         {
             if (parameters == null
@@ -32,21 +30,18 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             {
                 return -1;
             }
-
             bool validationOnly = parameters[0] == "VALIDATE";
             string output = parameters[1];
             string source = parameters[2];
             string exportName = parameters[3];
             string resolutionName = parameters[4];
             string progressPath = parameters[5];
-
             var response = new ExternalExportPopulationResponse
             {
                 SourceFile = source,
                 ExportSetName = exportName,
                 ResolutionType = resolutionName
             };
-
             try
             {
                 PublishProgress(
@@ -56,20 +51,15 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     0,
                     "Locating SOURCE Selection Set...",
                     false);
-
                 response.SourceHashBefore = Hash(source);
-
                 Document document =
                     Autodesk.Navisworks.Api.Application.ActiveDocument;
-
                 if (document == null)
                 {
                     throw new InvalidOperationException(
                         "Worker ActiveDocument is null.");
                 }
-
                 SelectionSet set = FindExportSet(document, exportName);
-
                 PublishProgress(
                     progressPath,
                     ExternalSourceProgressStage.ResolvingSourcePopulation,
@@ -77,33 +67,27 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     0,
                     "Resolving SOURCE population...",
                     false);
-
                 ModelItemCollection selected = set.GetSelectedItems();
                 var resolver = new ModelItemCollectionResolver();
                 CollectionResolutionResult resolved = resolver.Resolve(selected);
-
                 response.AllCount = resolved.AllItems.Count;
                 response.BranchCount = resolved.BranchItems.Count;
                 response.LeafCount = resolved.LeafItems.Count;
-
                 CollectionResolutionType type;
                 if (!Enum.TryParse(resolutionName, true, out type))
                 {
                     throw new InvalidOperationException(
                         "Invalid resolution type: " + resolutionName);
                 }
-
                 IEnumerable<ModelItem> outputItems =
                     type == CollectionResolutionType.Branch
                         ? resolved.BranchItems
                         : type == CollectionResolutionType.Leaf
                             ? resolved.LeafItems
                             : resolved.AllItems;
-
                 List<ModelItem> outputItemList = outputItems
                     .Where(item => item != null)
                     .ToList();
-
                 int outputTotal = outputItemList.Count;
                 if (outputTotal == 0)
                 {
@@ -111,23 +95,43 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                         "The external EXPORT Selection Set contains no items " +
                         "for the selected " + type + " resolution.");
                 }
-
+                PublishProgress(
+                    progressPath,
+                    ExternalSourceProgressStage.ResolvingSourcePopulation,
+                    0,
+                    resolved.AllItems.Count,
+                    "Discovering explicit SOURCE RID owners...",
+                    false);
+                PopulateExplicitOwnerGroups(
+                    response,
+                    resolved.AllItems);
+                Debug.WriteLine(
+                    "[O02-R1] Explicit SOURCE owner discovery complete; " +
+                    "owners=" + response.ExplicitOwnerCount +
+                    "; anchors=" + response.OwnerAnchorCount +
+                    "; nestedBoundaries=" +
+                    response.NestedOwnerBoundaryCount +
+                    "; outputResolution=" + type +
+                    "; outputItems=" + outputTotal +
+                    "; completeBoundaryItems=" + resolved.AllItems.Count +
+                    ".");
                 if (validationOnly)
                 {
                     response.Success = true;
                     response.SourceHashAfter = response.SourceHashBefore;
-
                     PublishProgress(
                         progressPath,
                         ExternalSourceProgressStage.ExternalSourceReady,
                         outputTotal,
                         outputTotal,
-                        "External SOURCE validation complete.",
+                        "External SOURCE validation complete. " +
+                        "Owners=" + response.ExplicitOwnerCount +
+                        "; anchors=" + response.OwnerAnchorCount +
+                        "; nested boundaries=" +
+                        response.NestedOwnerBoundaryCount + ".",
                         true);
-
                     throw new ValidationCompletedException();
                 }
-
                 int outputCurrent = 0;
                 PublishProgress(
                     progressPath,
@@ -136,12 +140,10 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     outputTotal,
                     "Reading SOURCE data 0/" + outputTotal + "...",
                     true);
-
                 foreach (ModelItem item in outputItemList)
                 {
                     ExternalModelItemSnapshot snapshot = CreateSnapshot(item);
                     response.Items.Add(snapshot);
-
                     outputCurrent++;
                     if (ShouldPublishItemProgress(outputCurrent, outputTotal))
                     {
@@ -155,7 +157,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                             true);
                     }
                 }
-
                 PublishProgress(
                     progressPath,
                     ExternalSourceProgressStage.VerifyingSource,
@@ -163,7 +164,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     outputTotal,
                     "Verifying external SOURCE file...",
                     false);
-
                 response.SourceHashAfter = Hash(source);
                 if (!string.Equals(
                     response.SourceHashBefore,
@@ -173,14 +173,17 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     throw new InvalidOperationException(
                         "READ-ONLY VIOLATION: source hash changed during extraction.");
                 }
-
                 response.Success = true;
                 PublishProgress(
                     progressPath,
                     ExternalSourceProgressStage.ExternalSourceReady,
                     outputTotal,
                     outputTotal,
-                    "External SOURCE data ready.",
+                    "External SOURCE data ready. " +
+                    "Owners=" + response.ExplicitOwnerCount +
+                    "; anchors=" + response.OwnerAnchorCount +
+                    "; nested boundaries=" +
+                    response.NestedOwnerBoundaryCount + ".",
                     true);
             }
             catch (ValidationCompletedException)
@@ -190,7 +193,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             {
                 response.Success = false;
                 response.Error = exception.ToString();
-
                 try
                 {
                     response.SourceHashAfter = Hash(source);
@@ -199,7 +201,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 {
                 }
             }
-
             try
             {
                 using (FileStream stream = File.Create(output))
@@ -213,10 +214,8 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             {
                 return -1;
             }
-
             return response.Success ? 0 : -1;
         }
-
         private static void PopulateExplicitOwnerGroups(
               ExternalExportPopulationResponse response,
               IEnumerable<ModelItem> boundaryItems)
@@ -236,7 +235,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
               response.OwnerAnchorCount = groups.Sum(group => group.Anchors.Count);
               response.NestedOwnerBoundaryCount = groups.Sum(group => group.Boundaries.Count);
           }
-
           private static ExternalSourceRidOwnerGroup BuildExplicitOwnerGroup(
               ModelItem owner,
               string ownerRid,
@@ -257,7 +255,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
               CollectOwnerDescendants(owner, owner, ownerRid, 0, boundary, group);
               return group;
           }
-
           private static void CollectOwnerDescendants(
               ModelItem owner,
               ModelItem current,
@@ -297,7 +294,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                   CollectOwnerDescendants(owner, child, ownerRid, childDepth, boundary, group);
               }
           }
-
           private static ExternalSourceAnchorSnapshot CreateOwnerAnchorSnapshot(
               ModelItem anchor,
               ModelItem owner,
@@ -343,7 +339,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
               }
               return result;
           }
-
         private static ExternalModelItemSnapshot CreateSnapshot(ModelItem item)
         {
             var snapshot = new ExternalModelItemSnapshot
@@ -352,7 +347,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 DisplayName = item.DisplayName,
                 HasChildren = HasChildren(item)
             };
-
             foreach (PropertyCategory category in item.PropertyCategories)
             {
                 foreach (DataProperty property in category.Properties)
@@ -366,15 +360,12 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                         });
                 }
             }
-
             List<PathCapture> path = BuildAncestorPath(item);
             snapshot.AncestorPath.AddRange(
                 path.Select(value => value.Snapshot));
-
             PopulateRidOwnerEvidence(snapshot, path);
             return snapshot;
         }
-
         private static void PopulateRidOwnerEvidence(
             ExternalModelItemSnapshot snapshot,
             IReadOnlyList<PathCapture> path)
@@ -395,26 +386,21 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             snapshot.RecoveredTransparentNodeCount = 0;
             snapshot.RecoveredSameRidBranchCount = 0;
             snapshot.RecoveredBoundaryRid = string.Empty;
-
             if (path == null || path.Count == 0)
             {
                 snapshot.RidOwnerEvidenceReason =
                     "No SOURCE ancestor path was available for owner recovery.";
                 return;
             }
-
             string anchorRid = ReadProperty(
                 path[0].Item,
                 RidCategoryName,
                 RidPropertyName);
-
             snapshot.AnchorRid = anchorRid ?? string.Empty;
             snapshot.RidPropagationBoundaryDepth = FindRidPropagationBoundaryDepth(
                 path,
                 anchorRid);
-
             PathCapture owner = null;
-
             if (IsTransferableRid(anchorRid))
             {
                 // A pre-propagated leaf can carry the owner's RID. Select the
@@ -432,7 +418,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                             anchorRid))
                     .OrderByDescending(value => value.Snapshot.DepthFromItem)
                     .FirstOrDefault();
-
                 if (owner == null)
                 {
                     owner = path[0];
@@ -454,7 +439,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     .OrderBy(value => value.Snapshot.DepthFromItem)
                     .FirstOrDefault();
             }
-
             if (owner == null)
             {
                 snapshot.RidOwnerEvidenceStatus =
@@ -466,31 +450,25 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 PopulateRecoveredRidOwnerEvidence(snapshot, path);
                 return;
             }
-
             snapshot.HasRidOwner = true;
             snapshot.RidOwnerDepthFromAnchor =
                 owner.Snapshot.DepthFromItem;
             snapshot.RidOwner = CloneNode(owner.Snapshot);
-
             int maximumDepth = Math.Min(
                 path.Count - 1,
                 snapshot.RidOwnerDepthFromAnchor +
                 ContextNodesAboveOwner);
-
             foreach (PathCapture value in path)
             {
                 if (value.Snapshot.DepthFromItem > maximumDepth)
                 {
                     break;
                 }
-
                 snapshot.TopologyPath.Add(
                     CloneNode(value.Snapshot));
             }
-
             PopulateRecoveredRidOwnerEvidence(snapshot, path);
         }
-
         private static void PopulateRecoveredRidOwnerEvidence(
             ExternalModelItemSnapshot snapshot,
             IReadOnlyList<PathCapture> path)
@@ -504,10 +482,8 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                         RidCategoryName,
                         RidPropertyName)))
                 .ToList();
-
             PropagatedRidOwnerRecoveryResult result =
                 PropagatedRidOwnerResolver.Resolve(facts);
-
             snapshot.RidOwnerEvidenceStatus = MapRecoveryStatus(result.Status);
             snapshot.RidOwnerEvidenceReason = result.Reason;
             snapshot.AnchorRid = result.AnchorRid;
@@ -520,7 +496,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             snapshot.RecoveredTransparentNodeCount = result.TransparentNodeCount;
             snapshot.RecoveredSameRidBranchCount = result.SameRidBranchCount;
             snapshot.RecoveredBoundaryRid = result.PropagationBoundaryRid;
-
             PathCapture recoveredOwner = result.OwnerDepthFromAnchor < 0
                 ? null
                 : (path ?? new PathCapture[0]).FirstOrDefault(value =>
@@ -529,14 +504,12 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             snapshot.RecoveredRidOwner = recoveredOwner == null
                 ? null
                 : CloneNode(recoveredOwner.Snapshot);
-
             int contextLimit = result.OwnerDepthFromAnchor < 0
                 ? -1
                 : Math.Min(
                     path.Count - 1,
                     result.OwnerDepthFromAnchor
                         + ContextNodesAboveOwner);
-
             foreach (PathCapture value in path ?? new PathCapture[0])
             {
                 if (contextLimit < 0
@@ -544,12 +517,10 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 {
                     break;
                 }
-
                 snapshot.RecoveredTopologyPath.Add(
                     CloneNode(value.Snapshot));
             }
         }
-
         private static ExternalRidOwnerEvidenceStatus MapRecoveryStatus(
             PropagatedRidOwnerRecoveryStatus status)
         {
@@ -567,8 +538,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     return ExternalRidOwnerEvidenceStatus.None;
             }
         }
-
-
         private static void ApplyOwnerEvidenceClassification(
             ExternalModelItemSnapshot snapshot)
         {
@@ -576,7 +545,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             {
                 return;
             }
-
             if (snapshot.RidOwnerDepthFromAnchor < 0)
             {
                 snapshot.RidOwnerEvidenceStatus =
@@ -585,7 +553,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     "An owner was retained with a negative owner depth.";
                 return;
             }
-
             if (snapshot.RidOwnerDepthFromAnchor == 0)
             {
                 snapshot.RidOwnerEvidenceStatus =
@@ -596,7 +563,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                         : "The anchor leaf owns the RID at depth zero; Direct mode handles leaf-owned RID transfer.";
                 return;
             }
-
             if (!snapshot.RidOwner.HasChildren)
             {
                 snapshot.RidOwnerEvidenceStatus =
@@ -605,13 +571,11 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     "The retained owner is above the anchor but is not a branch.";
                 return;
             }
-
             snapshot.RidOwnerEvidenceStatus =
                 ExternalRidOwnerEvidenceStatus.BranchOwned;
             snapshot.RidOwnerEvidenceReason =
                 "The current recovery algorithm retained a branch RID owner above the leaf anchor.";
         }
-
         private static int FindRidPropagationBoundaryDepth(
             IReadOnlyList<PathCapture> path,
             string anchorRid)
@@ -620,7 +584,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             {
                 return -1;
             }
-
             for (int index = 1; index < path.Count; index++)
             {
                 string currentRid = ReadProperty(
@@ -632,16 +595,13 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     return path[index].Snapshot.DepthFromItem;
                 }
             }
-
             return -1;
         }
-
         private static List<PathCapture> BuildAncestorPath(ModelItem item)
         {
             var result = new List<PathCapture>();
             ModelItem current = item;
             int depth = 0;
-
             while (current != null)
             {
                 result.Add(
@@ -656,14 +616,11 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                             SourceFile = ReadSourceFile(current),
                             HasChildren = HasChildren(current)
                         }));
-
                 current = current.Parent;
                 depth++;
             }
-
             return result;
         }
-
         private static ExternalTopologyPathNodeSnapshot CloneNode(
             ExternalTopologyPathNodeSnapshot value)
         {
@@ -671,7 +628,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             {
                 return null;
             }
-
             return new ExternalTopologyPathNodeSnapshot
             {
                 DepthFromItem = value.DepthFromItem,
@@ -682,20 +638,17 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 HasChildren = value.HasChildren
             };
         }
-
         private static bool RidEquals(string first, string second)
         {
             if (!IsTransferableRid(first) || !IsTransferableRid(second))
             {
                 return false;
             }
-
             return string.Equals(
                 first.Trim(),
                 second.Trim(),
                 StringComparison.OrdinalIgnoreCase);
         }
-
         private static bool IsTransferableRid(string value)
         {
             return !string.IsNullOrWhiteSpace(value)
@@ -704,22 +657,18 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     "\"\"",
                     StringComparison.Ordinal);
         }
-
         private static bool HasChildren(ModelItem item)
         {
             if (item == null)
             {
                 return false;
             }
-
             foreach (ModelItem child in item.Children)
             {
                 return true;
             }
-
             return false;
         }
-
         private sealed class PathCapture
         {
             public PathCapture(
@@ -729,32 +678,26 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 Item = item;
                 Snapshot = snapshot;
             }
-
             public ModelItem Item { get; private set; }
-
             public ExternalTopologyPathNodeSnapshot Snapshot
             {
                 get;
                 private set;
             }
         }
-
         private sealed class ValidationCompletedException : Exception
         {
         }
-
         private static bool ShouldPublishItemProgress(int current, int total)
         {
             if (current <= 1 || current >= total)
             {
                 return true;
             }
-
             return total <= 100
                 ? current % 5 == 0
                 : current % 25 == 0;
         }
-
         private static void PublishProgress(
             string path,
             string stage,
@@ -767,15 +710,12 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             {
                 return;
             }
-
             string directory = Path.GetDirectoryName(path);
             if (!string.IsNullOrWhiteSpace(directory))
             {
                 Directory.CreateDirectory(directory);
             }
-
             string recordPath = CreateProgressRecordPath(path);
-
             try
             {
                 var value = new ExternalSourceProgress
@@ -786,7 +726,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     Message = message,
                     IsDeterminate = determinate
                 };
-
                 using (var stream = new FileStream(
                     recordPath,
                     FileMode.CreateNew,
@@ -812,7 +751,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 }
             }
         }
-
         private static string CreateProgressRecordPath(string progressPath)
         {
             return progressPath
@@ -822,14 +760,12 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 + Guid.NewGuid().ToString("N")
                 + ".record";
         }
-
         private static SelectionSet FindExportSet(
             Document document,
             string name)
         {
             SavedItemCollection children =
                 document.SelectionSets.RootItem.Children;
-
             foreach (string part in new[]
             {
                 "MAE-4D",
@@ -844,16 +780,13 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                         part,
                         StringComparison.OrdinalIgnoreCase))
                     .ToList();
-
                 if (matches.Count != 1 || !(matches[0] is GroupItem))
                 {
                     throw new InvalidOperationException(
                         "Required folder missing or ambiguous: " + part);
                 }
-
                 children = ((GroupItem)matches[0]).Children;
             }
-
             List<SelectionSet> sets = children
                 .Cast<SavedItem>()
                 .OfType<SelectionSet>()
@@ -862,28 +795,23 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     name,
                     StringComparison.OrdinalIgnoreCase))
                 .ToList();
-
             if (sets.Count != 1)
             {
                 throw new InvalidOperationException(
                     "Export set missing or ambiguous: " + name);
             }
-
             return sets[0];
         }
-
         private static string ReadSourceFile(ModelItem item)
         {
             string value = ReadProperty(
                 item,
                 "Item",
                 "Source File Name");
-
             return string.IsNullOrWhiteSpace(value)
                 ? ReadProperty(item, "Item", "Source File")
                 : value;
         }
-
         private static string ReadProperty(
             ModelItem item,
             string categoryName,
@@ -893,7 +821,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
             {
                 return string.Empty;
             }
-
             foreach (PropertyCategory category in item.PropertyCategories)
             {
                 if (category == null
@@ -904,7 +831,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                 {
                     continue;
                 }
-
                 foreach (DataProperty property in category.Properties)
                 {
                     if (property == null
@@ -915,7 +841,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     {
                         continue;
                     }
-
                     try
                     {
                         return property.Value == null
@@ -928,17 +853,14 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     }
                 }
             }
-
             return string.Empty;
         }
-
         private static string SerializeVariantData(VariantData value)
         {
             if (value == null)
             {
                 return null;
             }
-
             try
             {
                 if (value.IsDisplayString)
@@ -952,7 +874,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     + exception.GetType().Name
                     + ">";
             }
-
             try
             {
                 string fallback = value.ToString();
@@ -967,7 +888,6 @@ namespace NavisLegacyPlugin.Commands.ExternalSources
                     + ">";
             }
         }
-
         private static string Hash(string path)
         {
             using (SHA256 sha = SHA256.Create())

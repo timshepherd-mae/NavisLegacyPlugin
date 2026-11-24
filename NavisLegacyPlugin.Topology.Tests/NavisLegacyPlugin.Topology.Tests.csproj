@@ -26,5 +26,7 @@
 	<Compile Include="..\NavisLegacyPlugin\Services\Topology\StructuralBranchEvidenceAnalyzer.cs" Link="Production\StructuralBranchEvidenceAnalyzer.cs" />
 	<Compile Include="..\NavisLegacyPlugin\Models\ExternalSources\ExternalModelItemSnapshot.cs" Link="Production\ExternalModelItemSnapshot.cs" />
 	<Compile Include="..\NavisLegacyPlugin\Models\ExternalSources\ExternalSourceRidOwnerGroup.cs" Link="Production\ExternalSourceRidOwnerGroup.cs" />
+	<Compile Include="..\NavisLegacyPlugin\Services\Topology\OwnerGroupTopologyPreparation.cs" Link="Production\OwnerGroupTopologyPreparation.cs"/>
+	<Compile Include="..\NavisLegacyPlugin\Services\Topology\OwnerGroupRouteConsensus.cs" Link="Production\OwnerGroupRouteConsensus.cs"/>
   </ItemGroup>
 </Project>
